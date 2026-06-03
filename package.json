@@ -1,0 +1,21 @@
+{
+  "name": "gupta-traders",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Inventory, Purchase & Tender Management System",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"pnpm --filter api dev\" \"pnpm --filter web dev\"",
+    "build": "pnpm --filter shared build && pnpm --filter api build && pnpm --filter web build",
+    "lint": "pnpm -r lint",
+    "seed": "pnpm --filter api seed",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
