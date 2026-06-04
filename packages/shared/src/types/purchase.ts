@@ -1,16 +1,9 @@
 import type { Attachment } from './common.js';
 
-export interface Purchase {
-  _id: string;
-  serialNo: number;
-  vendor: string;
-  vendorNameRaw: string;
+export interface PurchaseItem {
+  _id?: string;
   itemDescription: string;
   item?: string;
-  billDate: string | Date;
-  billNo: string;
-  site: string;
-  siteNameRaw: string;
   qty?: number;
   unit?: string;
   perRate?: number;
@@ -21,6 +14,21 @@ export interface Purchase {
   gstAmount: number;
   grandTotal: number;
   isHmPurchase: boolean;
+}
+
+export interface Purchase {
+  _id: string;
+  serialNo: number;
+  vendor: string;
+  vendorNameRaw: string;
+  billDate: string | Date;
+  billNo: string;
+  site: string;
+  siteNameRaw: string;
+  items: PurchaseItem[];
+  subTotal: number;
+  gstAmount: number;
+  grandTotal: number;
   notes?: string;
   attachments: Attachment[];
   createdBy: string;
@@ -28,9 +36,13 @@ export interface Purchase {
   updatedAt: string | Date;
 }
 
-export interface PurchasePopulated extends Omit<Purchase, 'vendor' | 'site' | 'item' | 'createdBy'> {
+export interface PurchasePopulated extends Omit<Purchase, 'vendor' | 'site' | 'createdBy' | 'items'> {
   vendor: { _id: string; name: string };
   site: { _id: string; name: string; code: string };
-  item?: { _id: string; name: string };
+  items: Array<
+    Omit<PurchaseItem, 'item'> & {
+      item?: { _id: string; name: string };
+    }
+  >;
   createdBy: { _id: string; name: string };
 }

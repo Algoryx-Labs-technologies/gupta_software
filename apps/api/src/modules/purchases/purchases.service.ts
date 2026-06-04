@@ -1,23 +1,59 @@
 import type { FilterQuery } from 'mongoose';
 import {
-  computePurchaseTotals,
+  buildPurchaseItemsWithTotals,
+  computePurchaseAggregateTotals,
   type CreatePurchaseInput,
   type UpdatePurchaseInput,
   type PurchaseFilterInput,
 } from '@gupta/shared';
-import { PurchaseModel, getNextPurchaseSerial, type IPurchase } from '../../models/Purchase.js';
+import { PurchaseModel, getNextPurchaseSerial, type IPurchase, type IPurchaseItem } from '../../models/Purchase.js';
 import { resolveCreatedByRef } from '../../config/admin.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
 
-function applyTotals(input: CreatePurchaseInput | UpdatePurchaseInput) {
-  return computePurchaseTotals({
-    qty: input.qty,
-    perRate: input.perRate,
-    freight: input.freight ?? 0,
-    labour: input.labour ?? 0,
-    gstPercent: input.gstPercent ?? 18,
-  });
+type LegacyPurchase = IPurchase & {
+  itemDescription?: string;
+  item?: IPurchaseItem['item'];
+  qty?: number;
+  unit?: string;
+  perRate?: number;
+  freight?: number;
+  labour?: number;
+  gstPercent?: number;
+  isHmPurchase?: boolean;
+};
+
+function normalizePurchase<T extends LegacyPurchase>(purchase: T): T {
+  if (purchase.items?.length) return purchase;
+
+  if (!purchase.itemDescription) return purchase;
+
+  const legacyItem: IPurchaseItem = {
+    itemDescription: purchase.itemDescription,
+    item: purchase.item,
+    qty: purchase.qty,
+    unit: purchase.unit,
+    perRate: purchase.perRate,
+    freight: purchase.freight ?? 0,
+    labour: purchase.labour ?? 0,
+    subTotal: purchase.subTotal ?? 0,
+    gstPercent: purchase.gstPercent ?? 18,
+    gstAmount: purchase.gstAmount ?? 0,
+    grandTotal: purchase.grandTotal ?? 0,
+    isHmPurchase: purchase.isHmPurchase ?? false,
+  };
+
+  return { ...purchase, items: [legacyItem] };
+}
+
+function normalizePurchases<T extends LegacyPurchase>(purchases: T[]): T[] {
+  return purchases.map(normalizePurchase);
+}
+
+function applyTotals(input: Pick<CreatePurchaseInput, 'items'>) {
+  const items = buildPurchaseItemsWithTotals(input.items);
+  const totals = computePurchaseAggregateTotals(items);
+  return { items, ...totals };
 }
 
 function buildFilter(filters: PurchaseFilterInput): FilterQuery<IPurchase> {
@@ -33,6 +69,7 @@ function buildFilter(filters: PurchaseFilterInput): FilterQuery<IPurchase> {
   if (filters.search) {
     query.$or = [
       { billNo: new RegExp(filters.search, 'i') },
+      { 'items.itemDescription': new RegExp(filters.search, 'i') },
       { itemDescription: new RegExp(filters.search, 'i') },
       { vendorNameRaw: new RegExp(filters.search, 'i') },
       { siteNameRaw: new RegExp(filters.search, 'i') },
@@ -52,7 +89,7 @@ export async function list(filters: PurchaseFilterInput) {
     PurchaseModel.find(filter)
       .populate('vendor', 'name')
       .populate('site', 'name code')
-      .populate('item', 'name')
+      .populate('items.item', 'name')
       .populate('createdBy', 'name')
       .sort(sort)
       .skip(skip)
@@ -61,16 +98,17 @@ export async function list(filters: PurchaseFilterInput) {
     PurchaseModel.countDocuments(filter),
   ]);
 
-  return { data, meta: buildPaginationMeta(page, limit, total) };
+  return { data: normalizePurchases(data as unknown as LegacyPurchase[]), meta: buildPaginationMeta(page, limit, total) };
 }
 
 export async function listForExport(filters: PurchaseFilterInput) {
   const filter = buildFilter(filters);
-  return PurchaseModel.find(filter)
+  const data = await PurchaseModel.find(filter)
     .populate('vendor', 'name')
     .populate('site', 'name code')
     .sort({ billDate: -1 })
     .lean();
+  return normalizePurchases(data as unknown as LegacyPurchase[]);
 }
 
 export async function create(input: CreatePurchaseInput, userId: string) {
@@ -89,34 +127,30 @@ export async function getById(id: string) {
   const purchase = await PurchaseModel.findById(id)
     .populate('vendor', 'name gstin')
     .populate('site', 'name code')
-    .populate('item', 'name')
+    .populate('items.item', 'name')
     .populate('createdBy', 'name email');
 
   if (!purchase) throw new ApiError(404, 'Purchase not found');
-  return purchase;
+  return normalizePurchase(purchase.toObject() as LegacyPurchase);
 }
 
 export async function update(id: string, input: UpdatePurchaseInput) {
   const existing = await PurchaseModel.findById(id);
   if (!existing) throw new ApiError(404, 'Purchase not found');
 
-  const merged = {
-    qty: input.qty ?? existing.qty,
-    perRate: input.perRate ?? existing.perRate,
-    freight: input.freight ?? existing.freight,
-    labour: input.labour ?? existing.labour,
-    gstPercent: input.gstPercent ?? existing.gstPercent,
-  };
+  const updatePayload: Record<string, unknown> = { ...input };
 
-  const totals = applyTotals(merged);
+  if (input.items) {
+    Object.assign(updatePayload, applyTotals({ items: input.items }));
+  }
 
-  const purchase = await PurchaseModel.findByIdAndUpdate(
-    id,
-    { ...input, ...totals },
-    { new: true, runValidators: true },
-  )
+  const purchase = await PurchaseModel.findByIdAndUpdate(id, updatePayload, {
+    new: true,
+    runValidators: true,
+  })
     .populate('vendor', 'name')
-    .populate('site', 'name code');
+    .populate('site', 'name code')
+    .populate('items.item', 'name');
 
   return purchase;
 }

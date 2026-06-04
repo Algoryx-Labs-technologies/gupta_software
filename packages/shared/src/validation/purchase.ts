@@ -3,15 +3,9 @@ import { objectIdSchema } from './common.js';
 
 const optionalNumber = z.coerce.number().optional().nullable();
 
-export const createPurchaseSchema = z.object({
-  vendor: objectIdSchema.optional(),
-  vendorNameRaw: z.string().min(1, 'Vendor name is required'),
+export const purchaseItemSchema = z.object({
   itemDescription: z.string().min(1, 'Item description is required'),
   item: objectIdSchema.optional(),
-  billDate: z.coerce.date(),
-  billNo: z.string().min(1, 'Bill number is required'),
-  site: objectIdSchema.optional(),
-  siteNameRaw: z.string().min(1, 'Site name is required'),
   qty: optionalNumber,
   unit: z.string().optional(),
   perRate: optionalNumber,
@@ -19,6 +13,18 @@ export const createPurchaseSchema = z.object({
   labour: z.coerce.number().min(0).default(0),
   gstPercent: z.coerce.number().min(0).max(100).default(18),
   isHmPurchase: z.boolean().default(false),
+});
+
+export type PurchaseItemInput = z.infer<typeof purchaseItemSchema>;
+
+export const createPurchaseSchema = z.object({
+  vendor: objectIdSchema.optional(),
+  vendorNameRaw: z.string().min(1, 'Vendor name is required'),
+  billDate: z.coerce.date(),
+  billNo: z.string().min(1, 'Bill number is required'),
+  site: objectIdSchema.optional(),
+  siteNameRaw: z.string().min(1, 'Site name is required'),
+  items: z.array(purchaseItemSchema).min(1, 'At least one item is required'),
   notes: z.string().optional(),
 });
 
@@ -60,4 +66,25 @@ export function computePurchaseTotals(input: {
   const grandTotal = Math.round((subTotal + gstAmount) * 100) / 100;
 
   return { subTotal, gstAmount, grandTotal };
+}
+
+export function computePurchaseAggregateTotals(
+  items: Array<{
+    subTotal: number;
+    gstAmount: number;
+    grandTotal: number;
+  }>,
+) {
+  const subTotal = Math.round(items.reduce((sum, i) => sum + i.subTotal, 0) * 100) / 100;
+  const gstAmount = Math.round(items.reduce((sum, i) => sum + i.gstAmount, 0) * 100) / 100;
+  const grandTotal = Math.round(items.reduce((sum, i) => sum + i.grandTotal, 0) * 100) / 100;
+
+  return { subTotal, gstAmount, grandTotal };
+}
+
+export function buildPurchaseItemsWithTotals(items: PurchaseItemInput[]) {
+  return items.map((item) => ({
+    ...item,
+    ...computePurchaseTotals(item),
+  }));
 }

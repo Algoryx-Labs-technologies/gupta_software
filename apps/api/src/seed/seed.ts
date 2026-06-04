@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { Role, TenderStatus, computePurchaseTotals } from '@gupta/shared';
+import { Role, TenderStatus, computePurchaseTotals, computePurchaseAggregateTotals } from '@gupta/shared';
 import { connectDb, disconnectDb } from '../config/db.js';
 import { UserModel } from '../models/User.js';
 import { SiteModel } from '../models/Site.js';
@@ -74,80 +74,96 @@ async function seed() {
     { name: 'PUMP', category: 'Mechanical', defaultUnit: 'NOS' },
   ]);
 
-  const totals1 = computePurchaseTotals({
-    qty: 10,
-    perRate: 2500,
-    freight: 500,
-    labour: 200,
-    gstPercent: 18,
-  });
+  const purchase1Items = [
+    {
+      itemDescription: 'CEILING FAN 1200MM',
+      item: items[0]._id,
+      qty: 10,
+      unit: 'NOS',
+      perRate: 2500,
+      freight: 500,
+      labour: 200,
+      gstPercent: 18,
+      isHmPurchase: false,
+      ...computePurchaseTotals({ qty: 10, perRate: 2500, freight: 500, labour: 200, gstPercent: 18 }),
+    },
+    {
+      itemDescription: 'LED BULB 9W',
+      qty: 50,
+      unit: 'NOS',
+      perRate: 120,
+      freight: 0,
+      labour: 0,
+      gstPercent: 18,
+      isHmPurchase: false,
+      ...computePurchaseTotals({ qty: 50, perRate: 120, freight: 0, labour: 0, gstPercent: 18 }),
+    },
+  ];
 
-  const totals2 = computePurchaseTotals({
-    qty: 587.22,
-    perRate: 45,
-    freight: 1200,
-    labour: 0,
-    gstPercent: 18,
-  });
+  const purchase2Items = [
+    {
+      itemDescription: '25MM COPPER WIRE',
+      item: items[1]._id,
+      qty: 587.22,
+      unit: 'SQFT',
+      perRate: 45,
+      freight: 1200,
+      labour: 0,
+      gstPercent: 18,
+      isHmPurchase: true,
+      ...computePurchaseTotals({ qty: 587.22, perRate: 45, freight: 1200, labour: 0, gstPercent: 18 }),
+    },
+  ];
+
+  const purchase3Items = [
+    {
+      itemDescription: 'WOODEN DOOR FRAME',
+      qty: 5,
+      unit: 'NOS',
+      perRate: 8500,
+      freight: 0,
+      labour: 1500,
+      gstPercent: 18,
+      isHmPurchase: false,
+      ...computePurchaseTotals({ qty: 5, perRate: 8500, freight: 0, labour: 1500, gstPercent: 18 }),
+    },
+  ];
 
   await PurchaseModel.insertMany([
     {
       serialNo: 1,
       vendor: vendors[0]._id,
       vendorNameRaw: vendors[0].name,
-      itemDescription: 'CEILING FAN 1200MM',
-      item: items[0]._id,
       billDate: new Date('2025-11-15'),
       billNo: 'BILL-2025-001',
       site: sites[0]._id,
       siteNameRaw: sites[0].name,
-      qty: 10,
-      unit: 'NOS',
-      perRate: 2500,
-      freight: 500,
-      labour: 200,
-      ...totals1,
-      gstPercent: 18,
-      isHmPurchase: false,
+      items: purchase1Items,
+      ...computePurchaseAggregateTotals(purchase1Items),
       createdBy: operator._id,
     },
     {
       serialNo: 2,
       vendor: vendors[1]._id,
       vendorNameRaw: vendors[1].name,
-      itemDescription: '25MM COPPER WIRE',
-      item: items[1]._id,
       billDate: new Date('2025-12-01'),
       billNo: 'ME-4521',
       site: sites[1]._id,
       siteNameRaw: sites[1].name,
-      qty: 587.22,
-      unit: 'SQFT',
-      perRate: 45,
-      freight: 1200,
-      labour: 0,
-      ...totals2,
-      gstPercent: 18,
-      isHmPurchase: true,
+      items: purchase2Items,
+      ...computePurchaseAggregateTotals(purchase2Items),
       createdBy: operator._id,
     },
     {
       serialNo: 3,
       vendor: vendors[2]._id,
       vendorNameRaw: vendors[2].name,
-      itemDescription: 'WOODEN DOOR FRAME',
       billDate: new Date('2026-01-10'),
       billNo: 'RW-889',
       site: sites[2]._id,
       siteNameRaw: sites[2].name,
-      qty: 5,
-      unit: 'NOS',
-      perRate: 8500,
-      freight: 0,
-      labour: 1500,
-      ...computePurchaseTotals({ qty: 5, perRate: 8500, freight: 0, labour: 1500 }),
-      gstPercent: 18,
-      isHmPurchase: false,
+      items: purchase3Items,
+      ...computePurchaseAggregateTotals(purchase3Items),
       createdBy: operator._id,
     },
   ]);
