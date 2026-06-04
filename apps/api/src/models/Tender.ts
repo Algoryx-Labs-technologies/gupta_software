@@ -2,6 +2,12 @@ import mongoose, { Schema, type Document, type Types } from 'mongoose';
 import { TenderStatus } from '@gupta/shared';
 import type { IAttachment } from './Purchase.js';
 
+export interface ITenderSite {
+  _id?: Types.ObjectId;
+  site?: Types.ObjectId;
+  siteNameRaw: string;
+}
+
 export interface ITender extends Document {
   serialNo: number;
   tenderName: string;
@@ -17,6 +23,7 @@ export interface ITender extends Document {
   bgNumber?: string;
   bgExpiryDate?: Date;
   status: TenderStatus;
+  sites: ITenderSite[];
   notes?: string;
   attachments: IAttachment[];
   createdBy?: Types.ObjectId;
@@ -29,6 +36,14 @@ const attachmentSchema = new Schema<IAttachment>(
     filename: { type: String, required: true },
     url: { type: String, required: true },
     uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: true },
+);
+
+const tenderSiteSchema = new Schema<ITenderSite>(
+  {
+    site: { type: Schema.Types.ObjectId, ref: 'Site' },
+    siteNameRaw: { type: String, required: true, trim: true },
   },
   { _id: true },
 );
@@ -53,6 +68,11 @@ const tenderSchema = new Schema<ITender>(
       enum: Object.values(TenderStatus),
       default: TenderStatus.PENDING,
     },
+    sites: {
+      type: [tenderSiteSchema],
+      default: [],
+      validate: [(v: ITenderSite[]) => v.length > 0, 'At least one site is required'],
+    },
     notes: { type: String },
     attachments: [attachmentSchema],
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -61,7 +81,7 @@ const tenderSchema = new Schema<ITender>(
 );
 
 tenderSchema.index({ status: 1 });
-tenderSchema.index({ tenderName: 'text', tenderNo: 'text' });
+tenderSchema.index({ tenderName: 'text', tenderNo: 'text', 'sites.siteNameRaw': 'text' });
 tenderSchema.index({ bgExpiryDate: 1 });
 
 export const TenderModel = mongoose.model<ITender>('Tender', tenderSchema);

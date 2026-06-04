@@ -18,9 +18,18 @@ function buildFilter(filters: TenderFilterInput): FilterQuery<ITender> {
       { tenderName: new RegExp(filters.search, 'i') },
       { tenderNo: new RegExp(filters.search, 'i') },
       { bgNumber: new RegExp(filters.search, 'i') },
+      { 'sites.siteNameRaw': new RegExp(filters.search, 'i') },
     ];
   }
   return query;
+}
+
+function normalizeTender<T extends { sites?: ITender['sites'] }>(tender: T): T {
+  return { ...tender, sites: tender.sites ?? [] };
+}
+
+function normalizeTenders<T extends { sites?: ITender['sites'] }>(tenders: T[]): T[] {
+  return tenders.map(normalizeTender);
 }
 
 export async function list(filters: TenderFilterInput) {
@@ -30,15 +39,25 @@ export async function list(filters: TenderFilterInput) {
   const sort: Record<string, 1 | -1> = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
 
   const [data, total] = await Promise.all([
-    TenderModel.find(filter).populate('createdBy', 'name').sort(sort).skip(skip).limit(limit).lean(),
+    TenderModel.find(filter)
+      .populate('createdBy', 'name')
+      .populate('sites.site', 'name code')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
     TenderModel.countDocuments(filter),
   ]);
 
-  return { data, meta: buildPaginationMeta(page, limit, total) };
+  return { data: normalizeTenders(data), meta: buildPaginationMeta(page, limit, total) };
 }
 
 export async function listForExport(filters: TenderFilterInput) {
-  return TenderModel.find(buildFilter(filters)).sort({ createdAt: -1 }).lean();
+  const data = await TenderModel.find(buildFilter(filters))
+    .populate('sites.site', 'name code')
+    .sort({ createdAt: -1 })
+    .lean();
+  return normalizeTenders(data);
 }
 
 export async function create(input: CreateTenderInput, userId: string) {
@@ -47,13 +66,16 @@ export async function create(input: CreateTenderInput, userId: string) {
 }
 
 export async function getById(id: string) {
-  const tender = await TenderModel.findById(id).populate('createdBy', 'name email');
+  const tender = await TenderModel.findById(id)
+    .populate('createdBy', 'name email')
+    .populate('sites.site', 'name code');
   if (!tender) throw new ApiError(404, 'Tender not found');
-  return tender;
+  return normalizeTender(tender.toObject());
 }
 
 export async function update(id: string, input: UpdateTenderInput) {
-  const tender = await TenderModel.findByIdAndUpdate(id, input, { new: true, runValidators: true });
+  const tender = await TenderModel.findByIdAndUpdate(id, input, { new: true, runValidators: true })
+    .populate('sites.site', 'name code');
   if (!tender) throw new ApiError(404, 'Tender not found');
   return tender;
 }

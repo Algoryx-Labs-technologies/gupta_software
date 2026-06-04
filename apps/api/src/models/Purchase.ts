@@ -26,6 +26,7 @@ export interface IPurchase extends Document {
   serialNo: number;
   vendor?: Types.ObjectId;
   vendorNameRaw: string;
+  tender?: Types.ObjectId;
   billDate: Date;
   billNo: string;
   site?: Types.ObjectId;
@@ -73,6 +74,7 @@ const purchaseSchema = new Schema<IPurchase>(
     serialNo: { type: Number, required: true, unique: true },
     vendor: { type: Schema.Types.ObjectId, ref: 'Vendor' },
     vendorNameRaw: { type: String, required: true, trim: true },
+    tender: { type: Schema.Types.ObjectId, ref: 'Tender' },
     billDate: { type: Date, required: true },
     billNo: { type: String, required: true, trim: true },
     site: { type: Schema.Types.ObjectId, ref: 'Site' },
@@ -91,6 +93,7 @@ const purchaseSchema = new Schema<IPurchase>(
 purchaseSchema.index({ billDate: -1 });
 purchaseSchema.index({ site: 1, billDate: -1 });
 purchaseSchema.index({ vendor: 1 });
+purchaseSchema.index({ tender: 1 });
 purchaseSchema.index({ billNo: 'text', vendorNameRaw: 'text', 'items.itemDescription': 'text' });
 
 export const PurchaseModel = mongoose.model<IPurchase>('Purchase', purchaseSchema);

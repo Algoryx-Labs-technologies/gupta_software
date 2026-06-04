@@ -11,6 +11,7 @@ import LoginPage from '@/pages/auth/Login';
 import DashboardPage from '@/pages/dashboard/Dashboard';
 import PurchasesPage from '@/pages/purchases/Purchases';
 import TendersPage from '@/pages/tenders/Tenders';
+import LabourExpensesPage from '@/pages/labour-expenses/LabourExpenses';
 import InventoryPage from '@/pages/inventory/Inventory';
 import SitesPage from '@/pages/masters/Sites';
 import VendorsPage from '@/pages/masters/Vendors';
@@ -45,6 +46,7 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/purchases" element={<PurchasesPage />} />
               <Route path="/tenders" element={<TendersPage />} />
+              <Route path="/labour-expenses" element={<LabourExpensesPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/masters/sites" element={<SitesPage />} />
               <Route path="/masters/vendors" element={<VendorsPage />} />

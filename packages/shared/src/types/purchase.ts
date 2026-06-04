@@ -21,6 +21,7 @@ export interface Purchase {
   serialNo: number;
   vendor: string;
   vendorNameRaw: string;
+  tender?: string;
   billDate: string | Date;
   billNo: string;
   site: string;
@@ -36,8 +37,9 @@ export interface Purchase {
   updatedAt: string | Date;
 }
 
-export interface PurchasePopulated extends Omit<Purchase, 'vendor' | 'site' | 'createdBy' | 'items'> {
+export interface PurchasePopulated extends Omit<Purchase, 'vendor' | 'site' | 'tender' | 'createdBy' | 'items'> {
   vendor: { _id: string; name: string };
+  tender?: { _id: string; tenderName: string; tenderNo: string };
   site: { _id: string; name: string; code: string };
   items: Array<
     Omit<PurchaseItem, 'item'> & {

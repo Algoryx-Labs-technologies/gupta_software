@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,11 +10,14 @@ import {
   type CreatePurchaseInput,
   type Purchase,
   type PurchaseItemInput,
+  type Tender,
+  type TenderSite,
 } from '@gupta/shared';
 import { purchasesApi } from '@/api/purchases';
+import { tendersApi } from '@/api/tenders';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
-import { Input, Textarea } from '@/components/Input';
+import { Input, Textarea, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/Modal';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -26,8 +29,43 @@ import { toast } from 'sonner';
 
 type PurchaseRow = Purchase & {
   vendor?: { name: string };
+  tender?: { tenderName: string; tenderNo: string };
   site?: { name: string };
 };
+
+type PopulatedTenderSite = TenderSite & {
+  site?: string | { _id: string; name: string; code: string };
+};
+
+type TenderOption = Tender & {
+  sites: PopulatedTenderSite[];
+};
+
+function getSiteRefId(siteRef?: string | { _id: string }): string | undefined {
+  if (!siteRef) return undefined;
+  return typeof siteRef === 'string' ? siteRef : siteRef._id;
+}
+
+function getTenderSiteKey(site: PopulatedTenderSite): string {
+  return getSiteRefId(site.site) ?? `name:${site.siteNameRaw}`;
+}
+
+function findSiteKey(
+  sites: PopulatedTenderSite[],
+  siteId?: string,
+  siteNameRaw?: string,
+): string {
+  if (siteId) {
+    const match = sites.find((s) => getSiteRefId(s.site) === siteId);
+    if (match) return getTenderSiteKey(match);
+  }
+  if (siteNameRaw) {
+    const match = sites.find((s) => s.siteNameRaw === siteNameRaw);
+    if (match) return getTenderSiteKey(match);
+    return `name:${siteNameRaw}`;
+  }
+  return '';
+}
 
 const defaultItem = (): PurchaseItemInput => ({
   itemDescription: '',
@@ -42,6 +80,7 @@ const defaultItem = (): PurchaseItemInput => ({
 
 const defaultFormValues = (): CreatePurchaseInput => ({
   vendorNameRaw: '',
+  tender: '',
   billNo: '',
   siteNameRaw: '',
   items: [defaultItem()],
@@ -55,11 +94,25 @@ function formatItemsSummary(items: Purchase['items']) {
 }
 
 function purchaseToFormValues(purchase: Purchase): CreatePurchaseInput {
+  const tenderId =
+    typeof purchase.tender === 'string'
+      ? purchase.tender
+      : purchase.tender && typeof purchase.tender === 'object'
+        ? (purchase.tender as { _id: string })._id
+        : undefined;
+  const siteId =
+    typeof purchase.site === 'string'
+      ? purchase.site
+      : purchase.site && typeof purchase.site === 'object'
+        ? (purchase.site as { _id: string })._id
+        : undefined;
+
   return {
     vendor: typeof purchase.vendor === 'string' ? purchase.vendor : undefined,
     vendorNameRaw: purchase.vendorNameRaw,
+    tender: tenderId ?? '',
     billNo: purchase.billNo,
-    site: typeof purchase.site === 'string' ? purchase.site : undefined,
+    site: siteId,
     siteNameRaw: purchase.siteNameRaw,
     billDate: new Date(purchase.billDate),
     notes: purchase.notes,
@@ -84,6 +137,7 @@ export default function PurchasesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedSiteKey, setSelectedSiteKey] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchases', page, search],
@@ -100,9 +154,78 @@ export default function PurchasesPage() {
     name: 'items',
   });
 
+  const { data: tendersData } = useQuery({
+    queryKey: ['tenders', 'purchase-form'],
+    queryFn: () => tendersApi.list({ limit: 100, sortBy: 'tenderName', sortOrder: 'asc' }),
+    enabled: modalOpen,
+  });
+
+  const tenders = (tendersData?.data ?? []) as TenderOption[];
+  const selectedTenderId = form.watch('tender');
+  const selectedTender = tenders.find((t) => t._id === selectedTenderId);
+
+  const tenderOptions = useMemo(
+    () => [
+      { value: '', label: 'Select tender' },
+      ...tenders.map((t) => ({
+        value: t._id,
+        label: `${t.tenderNo} — ${t.tenderName}`,
+      })),
+    ],
+    [tenders],
+  );
+
+  const siteOptions = useMemo(() => {
+    if (!selectedTender?.sites?.length) {
+      return [{ value: '', label: selectedTenderId ? 'No sites for this tender' : 'Select tender first' }];
+    }
+    return [
+      { value: '', label: 'Select site' },
+      ...selectedTender.sites.map((site) => ({
+        value: getTenderSiteKey(site),
+        label: site.siteNameRaw,
+      })),
+    ];
+  }, [selectedTender, selectedTenderId]);
+
+  const handleSiteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const key = e.target.value;
+    setSelectedSiteKey(key);
+
+    if (!key || !selectedTender) {
+      form.setValue('site', undefined);
+      form.setValue('siteNameRaw', '');
+      return;
+    }
+
+    const siteEntry = selectedTender.sites.find((s) => getTenderSiteKey(s) === key);
+    if (!siteEntry) return;
+
+    const siteId = getSiteRefId(siteEntry.site);
+    form.setValue('site', siteId, { shouldValidate: true });
+    form.setValue('siteNameRaw', siteEntry.siteNameRaw, { shouldValidate: true });
+  };
+
+  const syncSiteKeyFromForm = (tenderId?: string, siteId?: string, siteNameRaw?: string) => {
+    if (!tenderId) {
+      setSelectedSiteKey('');
+      return;
+    }
+    const tender = tenders.find((t) => t._id === tenderId);
+    if (!tender) return;
+    setSelectedSiteKey(findSiteKey(tender.sites, siteId, siteNameRaw));
+  };
+
   const watchedItems = form.watch('items');
   const itemTotals = (watchedItems ?? []).map((item) => computePurchaseTotals(item));
   const totals = computePurchaseAggregateTotals(itemTotals);
+
+  useEffect(() => {
+    if (!modalOpen || !tenders.length) return;
+    const tenderId = form.getValues('tender');
+    if (!tenderId) return;
+    syncSiteKeyFromForm(tenderId, form.getValues('site'), form.getValues('siteNameRaw'));
+  }, [modalOpen, tenders, form]);
 
   const createMutation = useMutation({
     mutationFn: purchasesApi.create,
@@ -137,11 +260,13 @@ export default function PurchasesPage() {
   const closeModal = () => {
     setModalOpen(false);
     setEditId(null);
+    setSelectedSiteKey('');
     form.reset(defaultFormValues());
   };
 
   const openCreate = () => {
     form.reset(defaultFormValues());
+    setSelectedSiteKey('');
     setEditId(null);
     setModalOpen(true);
   };
@@ -149,9 +274,11 @@ export default function PurchasesPage() {
   const openEdit = async (purchase: PurchaseRow) => {
     try {
       const full = await purchasesApi.get(purchase._id);
-      form.reset(purchaseToFormValues(full));
+      const values = purchaseToFormValues(full);
+      form.reset(values);
       setEditId(purchase._id);
       setModalOpen(true);
+      syncSiteKeyFromForm(values.tender, values.site, values.siteNameRaw);
     } catch {
       toast.error('Failed to load purchase');
     }
@@ -215,6 +342,15 @@ export default function PurchasesPage() {
     { key: 'billNo', header: 'Bill No', sortable: true },
     { key: 'billDate', header: 'Date', render: (r) => formatDate(r.billDate) },
     { key: 'vendorNameRaw', header: 'Vendor' },
+    {
+      key: 'tender',
+      header: 'Tender',
+      render: (r) => {
+        const tender = r.tender as { tenderNo?: string; tenderName?: string } | string | undefined;
+        if (!tender || typeof tender === 'string') return '—';
+        return tender.tenderNo ?? '—';
+      },
+    },
     {
       key: 'items',
       header: 'Items',
@@ -324,11 +460,27 @@ export default function PurchasesPage() {
             {...form.register('billNo')}
           />
           <Input label="Bill Date" type="date" {...form.register('billDate', { valueAsDate: true })} />
-          <Input
-            label="Site Name"
-            error={form.formState.errors.siteNameRaw?.message}
-            {...form.register('siteNameRaw')}
+          <Select
+            label="Tender"
+            options={tenderOptions}
+            error={form.formState.errors.tender?.message}
+            {...form.register('tender', {
+              onChange: () => {
+                form.setValue('site', undefined);
+                form.setValue('siteNameRaw', '');
+                setSelectedSiteKey('');
+              },
+            })}
           />
+          <Select
+            label="Site"
+            options={siteOptions}
+            value={selectedSiteKey}
+            onChange={handleSiteChange}
+            disabled={!selectedTenderId}
+            error={form.formState.errors.siteNameRaw?.message}
+          />
+          <input type="hidden" {...form.register('siteNameRaw')} />
 
           <div className="sm:col-span-2 space-y-4">
             <div className="flex items-center justify-between">

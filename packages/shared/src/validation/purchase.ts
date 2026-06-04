@@ -20,10 +20,11 @@ export type PurchaseItemInput = z.infer<typeof purchaseItemSchema>;
 export const createPurchaseSchema = z.object({
   vendor: objectIdSchema.optional(),
   vendorNameRaw: z.string().min(1, 'Vendor name is required'),
+  tender: z.string().min(1, 'Tender is required').regex(/^[a-f\d]{24}$/i, 'Invalid tender'),
   billDate: z.coerce.date(),
   billNo: z.string().min(1, 'Bill number is required'),
   site: objectIdSchema.optional(),
-  siteNameRaw: z.string().min(1, 'Site name is required'),
+  siteNameRaw: z.string().min(1, 'Site is required'),
   items: z.array(purchaseItemSchema).min(1, 'At least one item is required'),
   notes: z.string().optional(),
 });

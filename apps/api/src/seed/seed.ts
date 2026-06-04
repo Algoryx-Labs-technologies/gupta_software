@@ -7,6 +7,7 @@ import { VendorModel } from '../models/Vendor.js';
 import { ItemModel } from '../models/Item.js';
 import { PurchaseModel } from '../models/Purchase.js';
 import { TenderModel } from '../models/Tender.js';
+import { LabourExpenseModel } from '../models/LabourExpense.js';
 import { StockModel } from '../models/Stock.js';
 
 const TEAM_PASSWORD = 'Team@12345';
@@ -22,6 +23,7 @@ async function seed() {
     ItemModel.deleteMany({}),
     PurchaseModel.deleteMany({}),
     TenderModel.deleteMany({}),
+    LabourExpenseModel.deleteMany({}),
     StockModel.deleteMany({}),
   ]);
 
@@ -129,46 +131,7 @@ async function seed() {
     },
   ];
 
-  await PurchaseModel.insertMany([
-    {
-      serialNo: 1,
-      vendor: vendors[0]._id,
-      vendorNameRaw: vendors[0].name,
-      billDate: new Date('2025-11-15'),
-      billNo: 'BILL-2025-001',
-      site: sites[0]._id,
-      siteNameRaw: sites[0].name,
-      items: purchase1Items,
-      ...computePurchaseAggregateTotals(purchase1Items),
-      createdBy: operator._id,
-    },
-    {
-      serialNo: 2,
-      vendor: vendors[1]._id,
-      vendorNameRaw: vendors[1].name,
-      billDate: new Date('2025-12-01'),
-      billNo: 'ME-4521',
-      site: sites[1]._id,
-      siteNameRaw: sites[1].name,
-      items: purchase2Items,
-      ...computePurchaseAggregateTotals(purchase2Items),
-      createdBy: operator._id,
-    },
-    {
-      serialNo: 3,
-      vendor: vendors[2]._id,
-      vendorNameRaw: vendors[2].name,
-      billDate: new Date('2026-01-10'),
-      billNo: 'RW-889',
-      site: sites[2]._id,
-      siteNameRaw: sites[2].name,
-      items: purchase3Items,
-      ...computePurchaseAggregateTotals(purchase3Items),
-      createdBy: operator._id,
-    },
-  ]);
-
-  await TenderModel.insertMany([
+  const tenders = await TenderModel.insertMany([
     {
       serialNo: 1,
       tenderName: 'Water Supply Pipeline Project',
@@ -184,6 +147,10 @@ async function seed() {
       bgNumber: 'BG-WS-2025-001',
       bgExpiryDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
       status: TenderStatus.ACTIVE,
+      sites: [
+        { site: sites[0]._id, siteNameRaw: sites[0].name },
+        { site: sites[1]._id, siteNameRaw: sites[1].name },
+      ],
       createdBy: operator._id,
     },
     {
@@ -201,6 +168,7 @@ async function seed() {
       bgNumber: 'BG-EL-2025-002',
       bgExpiryDate: new Date('2025-08-15'),
       status: TenderStatus.COMPLETED,
+      sites: [{ site: sites[3]._id, siteNameRaw: sites[3].name }],
       createdBy: operator._id,
     },
     {
@@ -216,6 +184,81 @@ async function seed() {
       executionPending: 12000000,
       workCompleted: 0,
       status: TenderStatus.PENDING,
+      sites: [
+        { site: sites[2]._id, siteNameRaw: sites[2].name },
+        { site: sites[4]._id, siteNameRaw: sites[4].name },
+      ],
+      createdBy: operator._id,
+    },
+  ]);
+
+  await PurchaseModel.insertMany([
+    {
+      serialNo: 1,
+      vendor: vendors[0]._id,
+      vendorNameRaw: vendors[0].name,
+      tender: tenders[0]._id,
+      billDate: new Date('2025-11-15'),
+      billNo: 'BILL-2025-001',
+      site: sites[0]._id,
+      siteNameRaw: sites[0].name,
+      items: purchase1Items,
+      ...computePurchaseAggregateTotals(purchase1Items),
+      createdBy: operator._id,
+    },
+    {
+      serialNo: 2,
+      vendor: vendors[1]._id,
+      vendorNameRaw: vendors[1].name,
+      tender: tenders[0]._id,
+      billDate: new Date('2025-12-01'),
+      billNo: 'ME-4521',
+      site: sites[1]._id,
+      siteNameRaw: sites[1].name,
+      items: purchase2Items,
+      ...computePurchaseAggregateTotals(purchase2Items),
+      createdBy: operator._id,
+    },
+    {
+      serialNo: 3,
+      vendor: vendors[2]._id,
+      vendorNameRaw: vendors[2].name,
+      tender: tenders[2]._id,
+      billDate: new Date('2026-01-10'),
+      billNo: 'RW-889',
+      site: sites[2]._id,
+      siteNameRaw: sites[2].name,
+      items: purchase3Items,
+      ...computePurchaseAggregateTotals(purchase3Items),
+      createdBy: operator._id,
+    },
+  ]);
+
+  await LabourExpenseModel.insertMany([
+    {
+      tender: tenders[0]._id,
+      site: sites[0]._id,
+      siteNameRaw: sites[0].name,
+      amount: 45000,
+      expenseDate: new Date('2025-11-20'),
+      description: 'Loading and unloading labour',
+      createdBy: operator._id,
+    },
+    {
+      tender: tenders[0]._id,
+      site: sites[1]._id,
+      siteNameRaw: sites[1].name,
+      amount: 28000,
+      expenseDate: new Date('2025-12-05'),
+      description: 'Site supervision labour',
+      createdBy: operator._id,
+    },
+    {
+      tender: tenders[2]._id,
+      site: sites[2]._id,
+      siteNameRaw: sites[2].name,
+      amount: 62000,
+      expenseDate: new Date('2026-01-15'),
       createdBy: operator._id,
     },
   ]);

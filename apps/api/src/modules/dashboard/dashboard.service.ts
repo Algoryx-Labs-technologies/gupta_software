@@ -2,6 +2,7 @@ import { TenderStatus } from '@gupta/shared';
 import { PurchaseModel } from '../../models/Purchase.js';
 import { TenderModel } from '../../models/Tender.js';
 import { StockModel } from '../../models/Stock.js';
+import * as labourExpenseSvc from '../labour-expenses/labour-expenses.service.js';
 
 export async function getSummary(dateFrom?: Date, dateTo?: Date) {
   const purchaseMatch: Record<string, unknown> = {};
@@ -20,6 +21,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date) {
     statusCounts,
     expiringBgs,
     lowStock,
+    labourExpenses,
   ] = await Promise.all([
     PurchaseModel.aggregate([
       { $match: purchaseMatch },
@@ -105,6 +107,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date) {
       .populate('site', 'name')
       .limit(20)
       .lean(),
+    labourExpenseSvc.getSummaryStats(dateFrom, dateTo),
   ]);
 
   const stats = purchaseStats[0] ?? {
@@ -151,6 +154,20 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date) {
         daysUntilExpiry: Math.ceil(
           (t.bgExpiryDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
         ),
+      })),
+    },
+    labourExpenses: {
+      totalAmount: labourExpenses.totalAmount,
+      totalCount: labourExpenses.totalCount,
+      bySite: labourExpenses.bySite,
+      recent: labourExpenses.recent.map((e) => ({
+        _id: e._id.toString(),
+        tender: e.tender as never,
+        site: e.site as never,
+        siteNameRaw: e.siteNameRaw,
+        amount: e.amount,
+        expenseDate: e.expenseDate,
+        description: e.description ?? (e as { notes?: string }).notes,
       })),
     },
     inventory: {
