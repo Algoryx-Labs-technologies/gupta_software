@@ -1,25 +1,102 @@
+import mongoose from 'mongoose';
 import { TenderStatus } from '@gupta/shared';
 import { PurchaseModel } from '../../models/Purchase.js';
 import { TenderModel } from '../../models/Tender.js';
 import { StockModel } from '../../models/Stock.js';
+import { ApiError } from '../../utils/ApiError.js';
 import * as labourExpenseSvc from '../labour-expenses/labour-expenses.service.js';
 
-export async function getSummary(dateFrom?: Date, dateTo?: Date) {
+function buildPurchaseMatch(dateFrom?: Date, dateTo?: Date, tender?: string) {
   const purchaseMatch: Record<string, unknown> = {};
+  if (tender) purchaseMatch.tender = new mongoose.Types.ObjectId(tender);
   if (dateFrom || dateTo) {
     purchaseMatch.billDate = {};
     if (dateFrom) (purchaseMatch.billDate as Record<string, Date>).$gte = dateFrom;
     if (dateTo) (purchaseMatch.billDate as Record<string, Date>).$lte = dateTo;
   }
+  return purchaseMatch;
+}
+
+async function getTenderSection(tender?: string) {
+  if (!tender) {
+    const [tenderStats, statusCounts, expiringBgs] = await Promise.all([
+      TenderModel.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalOrderValue: { $sum: '$orderValue' },
+            totalOutstanding: { $sum: '$paymentOutstanding' },
+          },
+        },
+      ]),
+      TenderModel.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+      TenderModel.find({
+        bgExpiryDate: {
+          $gte: new Date(),
+          $lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        },
+        status: { $in: [TenderStatus.ACTIVE, TenderStatus.PENDING] },
+      })
+        .select('tenderName tenderNo bgNumber bgExpiryDate')
+        .lean(),
+    ]);
+
+    return { tenderStats, statusCounts, expiringBgs };
+  }
+
+  const selected = await TenderModel.findById(tender)
+    .select('tenderName tenderNo orderValue paymentOutstanding status bgNumber bgExpiryDate sites')
+    .lean();
+
+  if (!selected) {
+    throw new ApiError(404, 'Tender not found');
+  }
+
+  const expiringBgs =
+    selected.bgExpiryDate &&
+    selected.bgExpiryDate >= new Date() &&
+    selected.bgExpiryDate <= new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) &&
+    [TenderStatus.ACTIVE, TenderStatus.PENDING].includes(selected.status)
+      ? [selected]
+      : [];
+
+  return {
+    tenderStats: [{ totalOrderValue: selected.orderValue, totalOutstanding: selected.paymentOutstanding }],
+    statusCounts: [{ _id: selected.status, count: 1 }],
+    expiringBgs,
+    selected,
+  };
+}
+
+async function getLowStock(
+  tender?: string,
+  selectedTender?: { sites?: { site?: mongoose.Types.ObjectId }[] },
+) {
+  const stockQuery: Record<string, unknown> = { quantity: { $lte: 5 } };
+
+  if (tender && selectedTender) {
+    const siteIds = (selectedTender.sites ?? [])
+      .map((s) => s.site)
+      .filter((id): id is mongoose.Types.ObjectId => Boolean(id));
+
+    if (siteIds.length > 0) {
+      stockQuery.site = { $in: siteIds };
+    }
+  }
+
+  return StockModel.find(stockQuery).populate('item', 'name').populate('site', 'name').limit(20).lean();
+}
+
+export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string) {
+  const purchaseMatch = buildPurchaseMatch(dateFrom, dateTo, tender);
+  const tenderSection = await getTenderSection(tender);
+  const selectedTender = 'selected' in tenderSection ? tenderSection.selected : undefined;
 
   const [
     purchaseStats,
     bySite,
     byMonth,
     topVendors,
-    tenderStats,
-    statusCounts,
-    expiringBgs,
     lowStock,
     labourExpenses,
   ] = await Promise.all([
@@ -83,32 +160,11 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date) {
         },
       },
     ]),
-    TenderModel.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalOrderValue: { $sum: '$orderValue' },
-          totalOutstanding: { $sum: '$paymentOutstanding' },
-        },
-      },
-    ]),
-    TenderModel.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-    TenderModel.find({
-      bgExpiryDate: {
-        $gte: new Date(),
-        $lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-      },
-      status: { $in: [TenderStatus.ACTIVE, TenderStatus.PENDING] },
-    })
-      .select('tenderName tenderNo bgNumber bgExpiryDate')
-      .lean(),
-    StockModel.find({ quantity: { $lte: 5 } })
-      .populate('item', 'name')
-      .populate('site', 'name')
-      .limit(20)
-      .lean(),
-    labourExpenseSvc.getSummaryStats(dateFrom, dateTo),
+    getLowStock(tender, selectedTender),
+    labourExpenseSvc.getSummaryStats(dateFrom, dateTo, tender),
   ]);
+
+  const { tenderStats, statusCounts, expiringBgs } = tenderSection;
 
   const stats = purchaseStats[0] ?? {
     totalCount: 0,

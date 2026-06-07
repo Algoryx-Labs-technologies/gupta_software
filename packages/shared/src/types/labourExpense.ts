@@ -12,7 +12,7 @@ export interface LabourExpense {
 }
 
 export interface LabourExpensePopulated extends Omit<LabourExpense, 'tender' | 'site' | 'createdBy'> {
-  tender: { _id: string; tenderName: string; tenderNo: string };
+  tender: { _id: string; tenderName: string; tenderNo: string } | null;
   site?: { _id: string; name: string; code: string };
-  createdBy: { _id: string; name: string };
+  createdBy?: { _id: string; name: string };
 }

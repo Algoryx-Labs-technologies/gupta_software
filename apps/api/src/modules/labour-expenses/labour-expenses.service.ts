@@ -55,8 +55,9 @@ export async function remove(id: string) {
   return expense;
 }
 
-export async function getSummaryStats(dateFrom?: Date, dateTo?: Date) {
+export async function getSummaryStats(dateFrom?: Date, dateTo?: Date, tender?: string) {
   const match: Record<string, unknown> = {};
+  if (tender) match.tender = tender;
   if (dateFrom || dateTo) {
     match.expenseDate = {};
     if (dateFrom) (match.expenseDate as Record<string, Date>).$gte = dateFrom;

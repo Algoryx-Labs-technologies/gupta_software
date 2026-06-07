@@ -2,7 +2,7 @@ import api from './axios';
 import type { DashboardSummary, ActivityLog, PaginatedResponse } from '@gupta/shared';
 
 export const dashboardApi = {
-  summary: (params?: { dateFrom?: string; dateTo?: string }) =>
+  summary: (params?: { dateFrom?: string; dateTo?: string; tender?: string }) =>
     api.get<DashboardSummary>('/dashboard/summary', { params }).then((r) => r.data),
 };
 

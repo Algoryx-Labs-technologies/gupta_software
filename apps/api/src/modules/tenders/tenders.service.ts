@@ -6,6 +6,7 @@ import {
   TenderStatus,
 } from '@gupta/shared';
 import { TenderModel, getNextTenderSerial, type ITender } from '../../models/Tender.js';
+import { LabourExpenseModel } from '../../models/LabourExpense.js';
 import { resolveCreatedByRef } from '../../config/admin.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
@@ -81,6 +82,11 @@ export async function update(id: string, input: UpdateTenderInput) {
 }
 
 export async function remove(id: string) {
+  const linkedExpenses = await LabourExpenseModel.countDocuments({ tender: id });
+  if (linkedExpenses > 0) {
+    throw new ApiError(409, 'Cannot delete tender while labour expenses are linked to it');
+  }
+
   const tender = await TenderModel.findByIdAndDelete(id);
   if (!tender) throw new ApiError(404, 'Tender not found');
   return tender;

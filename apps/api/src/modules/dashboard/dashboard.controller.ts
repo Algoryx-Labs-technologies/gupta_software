@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
+import type { DashboardSummaryQuery } from '@gupta/shared';
 import * as svc from './dashboard.service.js';
 
 export async function summary(req: Request, res: Response) {
-  const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
-  const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
-  res.json(await svc.getSummary(dateFrom, dateTo));
+  const { dateFrom, dateTo, tender } = req.query as DashboardSummaryQuery;
+  res.json(await svc.getSummary(dateFrom, dateTo, tender));
 }

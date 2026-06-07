@@ -47,6 +47,7 @@ export default function App() {
               <Route path="/purchases" element={<PurchasesPage />} />
               <Route path="/tenders" element={<TendersPage />} />
               <Route path="/labour-expenses" element={<LabourExpensesPage />} />
+              <Route path="/labour" element={<Navigate to="/labour-expenses" replace />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route
                 path="/sites"

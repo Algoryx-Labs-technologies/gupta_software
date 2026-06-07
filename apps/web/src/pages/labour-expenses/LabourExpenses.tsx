@@ -40,6 +40,12 @@ function getTenderSiteKey(site: PopulatedTenderSite): string {
   return getSiteRefId(site.site) ?? `name:${site.siteNameRaw}`;
 }
 
+function getTenderLabel(tender: ExpenseRow['tender']): string {
+  if (!tender || typeof tender === 'string') return '—';
+  if (tender.tenderNo && tender.tenderName) return `${tender.tenderNo} — ${tender.tenderName}`;
+  return tender.tenderNo ?? tender.tenderName ?? '—';
+}
+
 const defaultFormValues = (): CreateLabourExpenseInput => ({
   tender: '',
   siteNameRaw: '',
@@ -171,7 +177,7 @@ export default function LabourExpensesPage() {
     {
       key: 'tender',
       header: 'Tender',
-      render: (r) => r.tender.tenderNo,
+      render: (r) => getTenderLabel(r.tender),
     },
     {
       key: 'siteNameRaw',

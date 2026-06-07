@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart,
@@ -14,10 +14,11 @@ import {
 } from 'recharts';
 import { IndianRupee, Receipt, FileText, AlertTriangle } from 'lucide-react';
 import { dashboardApi } from '@/api/dashboard';
+import { tendersApi } from '@/api/tenders';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { StatCard } from '@/components/StatCard';
 import { Spinner } from '@/components/Spinner';
-import { Input } from '@/components/Input';
+import { Input, Select } from '@/components/Input';
 import { formatCurrency, formatNumber } from '@/lib/formatters';
 
 const PIE_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#64748B'];
@@ -25,13 +26,33 @@ const PIE_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#64748B'];
 export default function DashboardPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [tenderId, setTenderId] = useState('');
+
+  const { data: tendersData } = useQuery({
+    queryKey: ['tenders', 'dashboard-filter'],
+    queryFn: () => tendersApi.list({ limit: 100, sortBy: 'tenderName', sortOrder: 'asc' }),
+  });
+
+  const tenderOptions = useMemo(
+    () => [
+      { value: '', label: 'All tenders' },
+      ...(tendersData?.data ?? []).map((t) => ({
+        value: t._id,
+        label: `${t.tenderNo} — ${t.tenderName}`,
+      })),
+    ],
+    [tendersData],
+  );
+
+  const selectedTenderLabel = tenderOptions.find((t) => t.value === tenderId)?.label;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard', dateFrom, dateTo],
+    queryKey: ['dashboard', dateFrom, dateTo, tenderId],
     queryFn: () =>
       dashboardApi.summary({
         ...(dateFrom && { dateFrom }),
         ...(dateTo && { dateTo }),
+        ...(tenderId && { tender: tenderId }),
       }),
   });
 
@@ -43,22 +64,46 @@ export default function DashboardPage() {
       ].filter((d) => d.value > 0)
     : [];
 
+  const filters = (
+    <div className="flex flex-wrap items-end gap-2">
+      <Select
+        label="Tender"
+        options={tenderOptions}
+        value={tenderId}
+        onChange={(e) => setTenderId(e.target.value)}
+        className="!w-auto min-w-[200px]"
+      />
+      <Input
+        type="date"
+        label="From"
+        value={dateFrom}
+        onChange={(e) => setDateFrom(e.target.value)}
+        className="!w-auto"
+      />
+      <Input
+        type="date"
+        label="To"
+        value={dateTo}
+        onChange={(e) => setDateTo(e.target.value)}
+        className="!w-auto"
+      />
+    </div>
+  );
+
   return (
-    <PageWrapper
-      title="Dashboard"
-      actions={
-        <div className="hidden items-center gap-2 sm:flex">
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="!w-auto" />
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="!w-auto" />
-        </div>
-      }
-    >
+    <PageWrapper title="Dashboard" actions={filters}>
       {isLoading ? (
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
       ) : data ? (
         <div className="space-y-6">
+          {tenderId && selectedTenderLabel && (
+            <p className="text-sm text-muted">
+              Showing stats for <span className="font-medium text-gray-700">{selectedTenderLabel}</span>
+            </p>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <StatCard
               title="Total Purchase Value"
@@ -73,9 +118,17 @@ export default function DashboardPage() {
               icon={Receipt}
             />
             <StatCard
-              title="Active Tenders"
-              value={formatNumber(data.tenders.activeCount)}
-              subtitle={formatCurrency(data.tenders.totalOrderValue) + ' order value'}
+              title={tenderId ? 'Tender Order Value' : 'Active Tenders'}
+              value={
+                tenderId
+                  ? formatCurrency(data.tenders.totalOrderValue)
+                  : formatNumber(data.tenders.activeCount)
+              }
+              subtitle={
+                tenderId
+                  ? selectedTenderLabel
+                  : formatCurrency(data.tenders.totalOrderValue) + ' order value'
+              }
               icon={FileText}
             />
             <StatCard
