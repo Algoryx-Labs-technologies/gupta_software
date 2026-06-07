@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Pencil, Trash2, Download, FileSpreadsheet, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Download, FileSpreadsheet, X, Info } from 'lucide-react';
 import {
   createPurchaseSchema,
   computePurchaseTotals,
@@ -22,6 +22,7 @@ import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/Modal';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
+import { Spinner } from '@/components/Spinner';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { exportToPdf } from '@/lib/exportToPdf';
@@ -130,6 +131,60 @@ function purchaseToFormValues(purchase: Purchase): CreatePurchaseInput {
   };
 }
 
+function formatDateTime(date: string | Date | undefined | null) {
+  if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</dt>
+      <dd className="mt-1 text-sm text-gray-900">{value ?? '—'}</dd>
+    </div>
+  );
+}
+
+function getCreatedByLabel(
+  createdBy: string | { _id: string; name: string; email?: string } | undefined,
+) {
+  if (!createdBy) return '—';
+  if (typeof createdBy === 'string') return createdBy;
+  return createdBy.email ? `${createdBy.name} (${createdBy.email})` : createdBy.name;
+}
+
+function getVendorLabel(vendor: string | { name: string; gstin?: string } | undefined) {
+  if (!vendor) return '—';
+  if (typeof vendor === 'string') return vendor;
+  return vendor.gstin ? `${vendor.name} (GSTIN: ${vendor.gstin})` : vendor.name;
+}
+
+function getTenderLabel(tender: string | { tenderNo?: string; tenderName?: string } | undefined) {
+  if (!tender) return '—';
+  if (typeof tender === 'string') return tender;
+  if (tender.tenderNo && tender.tenderName) return `${tender.tenderNo} — ${tender.tenderName}`;
+  return tender.tenderNo ?? tender.tenderName ?? '—';
+}
+
+function getSiteMasterLabel(site: string | { name: string; code?: string } | undefined) {
+  if (!site) return '—';
+  if (typeof site === 'string') return site;
+  return `${site.name}${site.code ? ` (${site.code})` : ''}`;
+}
+
+function getItemMasterLabel(item: string | { name: string } | undefined) {
+  if (!item) return '—';
+  if (typeof item === 'string') return item;
+  return item.name;
+}
+
 export default function PurchasesPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -137,11 +192,18 @@ export default function PurchasesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [infoId, setInfoId] = useState<string | null>(null);
   const [selectedSiteKey, setSelectedSiteKey] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchases', page, search],
     queryFn: () => purchasesApi.list({ page, limit: 20, search: search || undefined }),
+  });
+
+  const { data: detailPurchase, isLoading: detailLoading } = useQuery({
+    queryKey: ['purchases', infoId],
+    queryFn: () => purchasesApi.get(infoId!),
+    enabled: !!infoId,
   });
 
   const form = useForm<CreatePurchaseInput>({
@@ -312,29 +374,64 @@ export default function PurchasesPage() {
   };
 
   const handleExportPdf = async () => {
-    const { data: rows } = await purchasesApi.export({ search: search || undefined });
-    exportToPdf(
-      'Purchase Report',
-      [
-        { header: 'Bill No', dataKey: 'billNo' },
-        { header: 'Vendor', dataKey: 'vendorNameRaw' },
-        { header: 'Item', dataKey: 'itemDescription' },
-        { header: 'Site', dataKey: 'siteNameRaw' },
-        { header: 'Line Total', dataKey: 'lineTotal' },
-        { header: 'Bill Total', dataKey: 'billTotal' },
-      ],
-      rows.flatMap((r) =>
-        r.items.map((item) => ({
-          billNo: r.billNo,
-          vendorNameRaw: r.vendorNameRaw,
-          itemDescription: item.itemDescription,
-          siteNameRaw: r.siteNameRaw,
-          lineTotal: item.grandTotal,
-          billTotal: r.grandTotal,
-        })),
-      ) as unknown as Record<string, unknown>[],
-      'purchases',
-    );
+    try {
+      const { data: rows } = await purchasesApi.export({ search: search || undefined });
+      await exportToPdf(
+        'Purchase Report',
+        [
+          { header: '#', dataKey: 'serialNo' },
+          { header: 'Bill No', dataKey: 'billNo' },
+          { header: 'Date', dataKey: 'billDate' },
+          { header: 'Vendor', dataKey: 'vendorNameRaw' },
+          { header: 'Tender', dataKey: 'tender' },
+          { header: 'Site', dataKey: 'siteNameRaw' },
+          { header: 'Item', dataKey: 'itemDescription' },
+          { header: 'Qty', dataKey: 'qty' },
+          { header: 'Unit', dataKey: 'unit' },
+          { header: 'Rate', dataKey: 'perRate' },
+          { header: 'Freight', dataKey: 'freight' },
+          { header: 'Labour', dataKey: 'labour' },
+          { header: 'GST %', dataKey: 'gstPercent' },
+          { header: 'Line Sub Total', dataKey: 'subTotal' },
+          { header: 'Line GST', dataKey: 'gstAmount' },
+          { header: 'Line Total', dataKey: 'lineTotal' },
+          { header: 'Bill Sub Total', dataKey: 'billSubTotal' },
+          { header: 'Bill GST', dataKey: 'billGstAmount' },
+          { header: 'Bill Grand Total', dataKey: 'billGrandTotal' },
+          { header: 'HM', dataKey: 'isHmPurchase' },
+          { header: 'Notes', dataKey: 'notes' },
+        ],
+        rows.flatMap((r) =>
+          r.items.map((item) => ({
+            serialNo: r.serialNo,
+            billNo: r.billNo,
+            billDate: formatDate(r.billDate),
+            vendorNameRaw: r.vendorNameRaw,
+            tender: getTenderLabel(r.tender as never),
+            siteNameRaw: r.siteNameRaw,
+            itemDescription: item.itemDescription,
+            qty: item.qty ?? '',
+            unit: item.unit ?? '',
+            perRate: formatCurrency(item.perRate),
+            freight: formatCurrency(item.freight),
+            labour: formatCurrency(item.labour),
+            gstPercent: `${item.gstPercent ?? 0}%`,
+            subTotal: formatCurrency(item.subTotal),
+            gstAmount: formatCurrency(item.gstAmount),
+            lineTotal: formatCurrency(item.grandTotal),
+            billSubTotal: formatCurrency(r.subTotal),
+            billGstAmount: formatCurrency(r.gstAmount),
+            billGrandTotal: formatCurrency(r.grandTotal),
+            isHmPurchase: item.isHmPurchase ? 'Yes' : 'No',
+            notes: r.notes ?? '',
+          })),
+        ) as unknown as Record<string, unknown>[],
+        'purchases',
+      );
+      toast.success('PDF downloaded');
+    } catch {
+      toast.error('Failed to export PDF');
+    }
   };
 
   const columns: Column<PurchaseRow>[] = [
@@ -378,6 +475,13 @@ export default function PurchasesPage() {
       header: '',
       render: (r) => (
         <div className="flex gap-1">
+          <button
+            className="rounded p-1 hover:bg-blue-50"
+            title="View details"
+            onClick={() => setInfoId(r._id)}
+          >
+            <Info className="h-4 w-4 text-blue-600" />
+          </button>
           <button className="rounded p-1 hover:bg-brand-50" onClick={() => openEdit(r)}>
             <Pencil className="h-4 w-4" />
           </button>
@@ -590,6 +694,121 @@ export default function PurchasesPage() {
         title="Delete Purchase"
         message="Are you sure you want to delete this purchase record?"
       />
+
+      <Modal
+        open={!!infoId}
+        onClose={() => setInfoId(null)}
+        title="Purchase Details"
+        size="xl"
+        footer={
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={() => setInfoId(null)}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        {detailLoading ? (
+          <div className="flex justify-center py-12">
+            <Spinner />
+          </div>
+        ) : detailPurchase ? (
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <DetailField label="Serial No" value={detailPurchase.serialNo} />
+            <DetailField label="Bill No" value={detailPurchase.billNo} />
+            <DetailField label="Bill Date" value={formatDate(detailPurchase.billDate)} />
+            <DetailField label="Vendor Name" value={detailPurchase.vendorNameRaw} />
+            <DetailField
+              label="Linked Vendor"
+              value={getVendorLabel(detailPurchase.vendor as never)}
+            />
+            <DetailField label="Tender" value={getTenderLabel(detailPurchase.tender as never)} />
+            <DetailField label="Site Name" value={detailPurchase.siteNameRaw} />
+            <DetailField label="Linked Site" value={getSiteMasterLabel(detailPurchase.site as never)} />
+            <DetailField label="Sub Total" value={formatCurrency(detailPurchase.subTotal)} />
+            <DetailField label="GST Amount" value={formatCurrency(detailPurchase.gstAmount)} />
+            <DetailField label="Grand Total" value={formatCurrency(detailPurchase.grandTotal)} />
+            <DetailField label="Created By" value={getCreatedByLabel(detailPurchase.createdBy)} />
+            <DetailField label="Created At" value={formatDateTime(detailPurchase.createdAt)} />
+            <DetailField label="Updated At" value={formatDateTime(detailPurchase.updatedAt)} />
+
+            <div className="sm:col-span-2">
+              <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Notes</dt>
+              <dd className="mt-1 whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-900">
+                {detailPurchase.notes?.trim() || '—'}
+              </dd>
+            </div>
+
+            <div className="sm:col-span-2">
+              <dt className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Items</dt>
+              <dd>
+                {detailPurchase.items?.length ? (
+                  <div className="space-y-3">
+                    {detailPurchase.items.map((item, index) => (
+                      <div
+                        key={item._id ?? index}
+                        className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm"
+                      >
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="font-medium text-gray-900">Item {index + 1}: {item.itemDescription}</p>
+                          {item.isHmPurchase && <Badge variant="active">HM</Badge>}
+                        </div>
+                        <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          <DetailField
+                            label="Linked Item Master"
+                            value={getItemMasterLabel(item.item as never)}
+                          />
+                          <DetailField label="Quantity" value={item.qty ?? '—'} />
+                          <DetailField label="Unit" value={item.unit} />
+                          <DetailField label="Rate" value={formatCurrency(item.perRate)} />
+                          <DetailField label="Freight" value={formatCurrency(item.freight)} />
+                          <DetailField label="Labour" value={formatCurrency(item.labour)} />
+                          <DetailField label="Sub Total" value={formatCurrency(item.subTotal)} />
+                          <DetailField label="GST %" value={`${item.gstPercent}%`} />
+                          <DetailField label="GST Amount" value={formatCurrency(item.gstAmount)} />
+                          <DetailField label="Line Total" value={formatCurrency(item.grandTotal)} />
+                        </dl>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  '—'
+                )}
+              </dd>
+            </div>
+
+            <div className="sm:col-span-2">
+              <dt className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Attachments</dt>
+              <dd>
+                {detailPurchase.attachments?.length ? (
+                  <ul className="space-y-2">
+                    {detailPurchase.attachments.map((attachment, index) => (
+                      <li
+                        key={attachment._id ?? index}
+                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                      >
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-brand-600 hover:underline"
+                        >
+                          {attachment.filename}
+                        </a>
+                        <span className="text-gray-500">{formatDateTime(attachment.uploadedAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  '—'
+                )}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="py-8 text-center text-sm text-gray-500">Failed to load purchase details.</p>
+        )}
+      </Modal>
     </PageWrapper>
   );
 }

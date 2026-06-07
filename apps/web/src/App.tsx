@@ -48,9 +48,34 @@ export default function App() {
               <Route path="/tenders" element={<TendersPage />} />
               <Route path="/labour-expenses" element={<LabourExpensesPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/masters/sites" element={<SitesPage />} />
-              <Route path="/masters/vendors" element={<VendorsPage />} />
-              <Route path="/masters/items" element={<ItemsPage />} />
+              <Route
+                path="/sites"
+                element={
+                  <RoleGuard permission={Permission.MANAGE_MASTERS}>
+                    <SitesPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/vendors"
+                element={
+                  <RoleGuard permission={Permission.MANAGE_MASTERS}>
+                    <VendorsPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
+                path="/items"
+                element={
+                  <RoleGuard permission={Permission.MANAGE_MASTERS}>
+                    <ItemsPage />
+                  </RoleGuard>
+                }
+              />
+              <Route path="/masters/sites" element={<Navigate to="/sites" replace />} />
+              <Route path="/masters/vendors" element={<Navigate to="/vendors" replace />} />
+              <Route path="/masters/items" element={<Navigate to="/items" replace />} />
+              <Route path="/masters" element={<Navigate to="/sites" replace />} />
               <Route
                 path="/admin/team"
                 element={

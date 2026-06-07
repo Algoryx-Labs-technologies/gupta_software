@@ -55,7 +55,7 @@ pnpm dev
 | Role | Access |
 |------|--------|
 | **admin** | Full access including Team & Activity Logs |
-| **data_operator** | Purchases, Tenders, Inventory, Masters, Dashboard |
+| **data_operator** | Purchases, Tenders, Inventory, Sites, Vendors, Items, Dashboard |
 | **accountant** | Same as data_operator |
 
 ## Scripts

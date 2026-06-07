@@ -5,7 +5,6 @@ import {
   Package,
   MapPin,
   Users,
-  Boxes,
   ClipboardList,
   Shield,
   HardHat,
@@ -52,15 +51,22 @@ export const navConfig: NavItem[] = [
     permission: Permission.MANAGE_INVENTORY,
   },
   {
-    label: 'Masters',
-    path: '/masters',
-    icon: Boxes,
+    label: 'Sites',
+    path: '/sites',
+    icon: MapPin,
     permission: Permission.MANAGE_MASTERS,
-    children: [
-      { label: 'Sites', path: '/masters/sites', icon: MapPin },
-      { label: 'Vendors', path: '/masters/vendors', icon: Users },
-      { label: 'Items', path: '/masters/items', icon: ClipboardList },
-    ],
+  },
+  {
+    label: 'Vendors',
+    path: '/vendors',
+    icon: Users,
+    permission: Permission.MANAGE_MASTERS,
+  },
+  {
+    label: 'Items',
+    path: '/items',
+    icon: ClipboardList,
+    permission: Permission.MANAGE_MASTERS,
   },
   {
     label: 'Team & Roles',

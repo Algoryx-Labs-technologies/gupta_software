@@ -11,7 +11,8 @@ import {
 import { useAuth } from '@/auth/AuthContext';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { Package2, Shield, Users } from 'lucide-react';
+import { Logo } from '@/components/Logo';
+import { Shield, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/cn';
 
@@ -68,14 +69,9 @@ export default function LoginPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center gap-3 lg:hidden">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-gradient">
-          <Package2 className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <p className="font-bold">Gupta Traders</p>
-          <p className="text-xs text-muted">Sign in to continue</p>
-        </div>
+      <div className="mb-8 flex flex-col items-center gap-3 lg:hidden">
+        <Logo size="lg" />
+        <p className="text-sm text-muted">Sign in to continue</p>
       </div>
 
       <div className="mb-6 flex rounded-xl border border-border bg-surface p-1">

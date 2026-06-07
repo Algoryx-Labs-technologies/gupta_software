@@ -133,7 +133,7 @@ export default function InventoryPage() {
               {items.length === 0 && (
                 <tr>
                   <td colSpan={sites.length + 1} className="py-12 text-center text-muted">
-                    Add items and sites in Masters to build the inventory matrix.
+                    Add items and sites to build the inventory matrix.
                   </td>
                 </tr>
               )}

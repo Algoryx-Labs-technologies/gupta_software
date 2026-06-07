@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, Menu, X, Package2 } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { Logo } from '@/components/Logo';
 import { useAuth } from '@/auth/AuthContext';
 import { getFilteredNav, type NavItem } from '@/routes/navConfig';
 
@@ -87,12 +88,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const content = (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-border px-4 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-gradient">
-          <Package2 className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <p className="font-bold text-gray-900">Gupta Traders</p>
-          <p className="text-xs text-muted">Inventory & Purchase</p>
+        <Logo size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs text-muted">Inventory & Purchase</p>
         </div>
         <button className="ml-auto md:hidden" onClick={onMobileClose}>
           <X className="h-5 w-5" />

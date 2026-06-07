@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Pencil, Trash2, Download, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Download, X, Info } from 'lucide-react';
 import {
   createTenderSchema,
   TenderStatus,
@@ -17,6 +17,7 @@ import { Input, Textarea, Select } from '@/components/Input';
 import { Modal, ConfirmDialog } from '@/components/Modal';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
+import { Spinner } from '@/components/Spinner';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { toast } from 'sonner';
@@ -81,6 +82,41 @@ function isBgExpiringSoon(date?: string | Date) {
   return days >= 0 && days <= 60;
 }
 
+function formatDateTime(date: string | Date | undefined | null) {
+  if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</dt>
+      <dd className="mt-1 text-sm text-gray-900">{value ?? '—'}</dd>
+    </div>
+  );
+}
+
+function getCreatedByLabel(
+  createdBy: string | { _id: string; name: string; email?: string } | undefined,
+) {
+  if (!createdBy) return '—';
+  if (typeof createdBy === 'string') return createdBy;
+  return createdBy.email ? `${createdBy.name} (${createdBy.email})` : createdBy.name;
+}
+
+function getSiteMasterLabel(site: Tender['sites'][number]) {
+  const master = site.site as string | { name: string; code?: string } | undefined;
+  if (!master || typeof master === 'string') return '—';
+  return `${master.name}${master.code ? ` (${master.code})` : ''}`;
+}
+
 export default function TendersPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -88,10 +124,17 @@ export default function TendersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [infoId, setInfoId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['tenders', page, search],
     queryFn: () => tendersApi.list({ page, limit: 20, search: search || undefined }),
+  });
+
+  const { data: detailTender, isLoading: detailLoading } = useQuery({
+    queryKey: ['tenders', infoId],
+    queryFn: () => tendersApi.get(infoId!),
+    enabled: !!infoId,
   });
 
   const form = useForm<CreateTenderInput>({
@@ -188,6 +231,13 @@ export default function TendersPage() {
       header: '',
       render: (r) => (
         <div className="flex gap-1">
+          <button
+            className="rounded p-1 hover:bg-blue-50"
+            title="View details"
+            onClick={() => setInfoId(r._id)}
+          >
+            <Info className="h-4 w-4 text-blue-600" />
+          </button>
           <button className="rounded p-1 hover:bg-brand-50" onClick={() => openEdit(r)}>
             <Pencil className="h-4 w-4" />
           </button>
@@ -347,6 +397,107 @@ export default function TendersPage() {
         title="Delete Tender"
         message="Are you sure you want to delete this tender?"
       />
+
+      <Modal
+        open={!!infoId}
+        onClose={() => setInfoId(null)}
+        title="Tender Details"
+        size="xl"
+        footer={
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={() => setInfoId(null)}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        {detailLoading ? (
+          <div className="flex justify-center py-12">
+            <Spinner />
+          </div>
+        ) : detailTender ? (
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <DetailField label="Serial No" value={detailTender.serialNo} />
+            <DetailField label="Tender No" value={detailTender.tenderNo} />
+            <DetailField label="Tender Name" value={detailTender.tenderName} />
+            <DetailField label="Status" value={<Badge variant={detailTender.status}>{detailTender.status}</Badge>} />
+            <DetailField label="Order Value" value={formatCurrency(detailTender.orderValue)} />
+            <DetailField label="EMD" value={formatCurrency(detailTender.emd)} />
+            <DetailField label="PG" value={formatCurrency(detailTender.pg)} />
+            <DetailField label="SD from Bill" value={formatCurrency(detailTender.sdFromBill)} />
+            <DetailField
+              label="Payment Received Till Date"
+              value={formatCurrency(detailTender.paymentReceivedTillDate)}
+            />
+            <DetailField label="Payment Outstanding" value={formatCurrency(detailTender.paymentOutstanding)} />
+            <DetailField label="Execution Pending" value={formatCurrency(detailTender.executionPending)} />
+            <DetailField label="Work Completed" value={formatCurrency(detailTender.workCompleted)} />
+            <DetailField label="BG Number" value={detailTender.bgNumber} />
+            <DetailField label="BG Expiry Date" value={formatDate(detailTender.bgExpiryDate)} />
+            <DetailField label="Created By" value={getCreatedByLabel(detailTender.createdBy)} />
+            <DetailField label="Created At" value={formatDateTime(detailTender.createdAt)} />
+            <DetailField label="Updated At" value={formatDateTime(detailTender.updatedAt)} />
+
+            <div className="sm:col-span-2">
+              <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Notes</dt>
+              <dd className="mt-1 whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-900">
+                {detailTender.notes?.trim() || '—'}
+              </dd>
+            </div>
+
+            <div className="sm:col-span-2">
+              <dt className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Sites</dt>
+              <dd>
+                {detailTender.sites?.length ? (
+                  <div className="space-y-2">
+                    {detailTender.sites.map((site, index) => (
+                      <div
+                        key={site._id ?? index}
+                        className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm"
+                      >
+                        <p className="font-medium text-gray-900">Site {index + 1}: {site.siteNameRaw}</p>
+                        <p className="mt-1 text-gray-600">Linked site master: {getSiteMasterLabel(site)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  '—'
+                )}
+              </dd>
+            </div>
+
+            <div className="sm:col-span-2">
+              <dt className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Attachments</dt>
+              <dd>
+                {detailTender.attachments?.length ? (
+                  <ul className="space-y-2">
+                    {detailTender.attachments.map((attachment, index) => (
+                      <li
+                        key={attachment._id ?? index}
+                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                      >
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-brand-600 hover:underline"
+                        >
+                          {attachment.filename}
+                        </a>
+                        <span className="text-gray-500">{formatDateTime(attachment.uploadedAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  '—'
+                )}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="py-8 text-center text-sm text-gray-500">Failed to load tender details.</p>
+        )}
+      </Modal>
     </PageWrapper>
   );
 }
