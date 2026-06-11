@@ -1,26 +1,25 @@
 import type { StockCellInput, CreateStockInput, UpdateStockInput } from '@gupta/shared';
 import { StockModel } from '../../models/Stock.js';
-import { ItemModel } from '../../models/Item.js';
-import { SiteModel } from '../../models/Site.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
+import * as inventorySvc from '../inventory/inventory.service.js';
 
 export async function getMatrix() {
-  const [items, sites, stocks] = await Promise.all([
-    ItemModel.find().sort({ name: 1 }).select('name category defaultUnit').lean(),
-    SiteModel.find().sort({ name: 1 }).select('name code').lean(),
-    StockModel.find().lean(),
-  ]);
-
-  const cells = stocks.map((s) => ({
-    itemId: s.item.toString(),
-    siteId: s.site.toString(),
-    specification: s.specification ?? '',
-    quantity: s.quantity,
-    stockId: s._id.toString(),
-  }));
-
-  return { items, sites, cells };
+  const overview = await inventorySvc.getOverview();
+  return {
+    items: overview.items.map((item) => ({
+      _id: item.itemId ?? item.key,
+      name: item.name,
+      defaultUnit: item.unit,
+    })),
+    sites: overview.sites,
+    cells: overview.cells.map((cell) => ({
+      itemId: overview.items.find((item) => item.key === cell.itemKey)?.itemId ?? cell.itemKey,
+      siteId: cell.siteId,
+      specification: '',
+      quantity: cell.quantity,
+    })),
+  };
 }
 
 export async function upsertCell(input: StockCellInput) {

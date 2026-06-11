@@ -6,6 +6,7 @@ export * from './item.js';
 export * from './purchase.js';
 export * from './tender.js';
 export * from './stock.js';
+export * from './inventory.js';
 export * from './labourExpense.js';
 export * from './dashboard.js';
 export * from './activity.js';

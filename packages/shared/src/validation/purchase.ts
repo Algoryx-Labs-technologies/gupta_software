@@ -23,6 +23,7 @@ export const createPurchaseSchema = z.object({
   tender: z.string().min(1, 'Tender is required').regex(/^[a-f\d]{24}$/i, 'Invalid tender'),
   billDate: z.coerce.date(),
   billNo: z.string().min(1, 'Bill number is required'),
+  billName: z.string().min(1, 'Bill name is required'),
   site: objectIdSchema.optional(),
   siteNameRaw: z.string().min(1, 'Site is required'),
   items: z.array(purchaseItemSchema).min(1, 'At least one item is required'),

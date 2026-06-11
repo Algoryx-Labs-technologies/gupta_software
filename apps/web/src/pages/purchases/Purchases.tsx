@@ -15,6 +15,7 @@ import {
 } from '@gupta/shared';
 import { purchasesApi } from '@/api/purchases';
 import { tendersApi } from '@/api/tenders';
+import { vendorsApi } from '@/api/masters';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input, Textarea, Select } from '@/components/Input';
@@ -83,6 +84,7 @@ const defaultFormValues = (): CreatePurchaseInput => ({
   vendorNameRaw: '',
   tender: '',
   billNo: '',
+  billName: '',
   siteNameRaw: '',
   items: [defaultItem()],
   billDate: new Date(),
@@ -108,11 +110,19 @@ function purchaseToFormValues(purchase: Purchase): CreatePurchaseInput {
         ? (purchase.site as { _id: string })._id
         : undefined;
 
+  const vendorId =
+    typeof purchase.vendor === 'string'
+      ? purchase.vendor
+      : purchase.vendor && typeof purchase.vendor === 'object'
+        ? (purchase.vendor as { _id: string })._id
+        : undefined;
+
   return {
-    vendor: typeof purchase.vendor === 'string' ? purchase.vendor : undefined,
+    vendor: vendorId,
     vendorNameRaw: purchase.vendorNameRaw,
     tender: tenderId ?? '',
     billNo: purchase.billNo,
+    billName: purchase.billName ?? '',
     site: siteId,
     siteNameRaw: purchase.siteNameRaw,
     billDate: new Date(purchase.billDate),
@@ -222,9 +232,27 @@ export default function PurchasesPage() {
     enabled: modalOpen,
   });
 
+  const { data: vendorsData } = useQuery({
+    queryKey: ['vendors', 'purchase-form'],
+    queryFn: () => vendorsApi.list({ limit: 100 }),
+    enabled: modalOpen,
+  });
+
   const tenders = (tendersData?.data ?? []) as TenderOption[];
+  const vendors = vendorsData?.data ?? [];
   const selectedTenderId = form.watch('tender');
   const selectedTender = tenders.find((t) => t._id === selectedTenderId);
+
+  const vendorOptions = useMemo(
+    () => [
+      { value: '', label: 'Select vendor' },
+      ...vendors.map((v) => ({
+        value: v._id,
+        label: v.name,
+      })),
+    ],
+    [vendors],
+  );
 
   const tenderOptions = useMemo(
     () => [
@@ -288,6 +316,15 @@ export default function PurchasesPage() {
     if (!tenderId) return;
     syncSiteKeyFromForm(tenderId, form.getValues('site'), form.getValues('siteNameRaw'));
   }, [modalOpen, tenders, form]);
+
+  useEffect(() => {
+    if (!modalOpen || !vendors.length) return;
+    if (form.getValues('vendor')) return;
+    const nameRaw = form.getValues('vendorNameRaw');
+    if (!nameRaw) return;
+    const match = vendors.find((v) => v.name === nameRaw);
+    if (match) form.setValue('vendor', match._id);
+  }, [modalOpen, vendors, form]);
 
   const createMutation = useMutation({
     mutationFn: purchasesApi.create,
@@ -360,6 +397,7 @@ export default function PurchasesPage() {
           Vendor: r.vendorNameRaw,
           Item: item.itemDescription,
           'Bill No': r.billNo,
+          'Bill Name': r.billName,
           Site: r.siteNameRaw,
           Qty: item.qty,
           Unit: item.unit,
@@ -381,6 +419,7 @@ export default function PurchasesPage() {
         [
           { header: '#', dataKey: 'serialNo' },
           { header: 'Bill No', dataKey: 'billNo' },
+          { header: 'Bill Name', dataKey: 'billName' },
           { header: 'Date', dataKey: 'billDate' },
           { header: 'Vendor', dataKey: 'vendorNameRaw' },
           { header: 'Tender', dataKey: 'tender' },
@@ -405,6 +444,7 @@ export default function PurchasesPage() {
           r.items.map((item) => ({
             serialNo: r.serialNo,
             billNo: r.billNo,
+            billName: r.billName,
             billDate: formatDate(r.billDate),
             vendorNameRaw: r.vendorNameRaw,
             tender: getTenderLabel(r.tender as never),
@@ -437,6 +477,7 @@ export default function PurchasesPage() {
   const columns: Column<PurchaseRow>[] = [
     { key: 'serialNo', header: '#', className: 'w-12' },
     { key: 'billNo', header: 'Bill No', sortable: true },
+    { key: 'billName', header: 'Bill Name' },
     { key: 'billDate', header: 'Date', render: (r) => formatDate(r.billDate) },
     { key: 'vendorNameRaw', header: 'Vendor' },
     {
@@ -512,7 +553,7 @@ export default function PurchasesPage() {
     >
       <div className="mb-4">
         <Input
-          placeholder="Search bill no, item, vendor, site..."
+          placeholder="Search bill no, bill name, item, vendor, site..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -553,15 +594,27 @@ export default function PurchasesPage() {
         }
       >
         <form className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Vendor Name"
+          <Select
+            label="Vendor"
+            options={vendorOptions}
             error={form.formState.errors.vendorNameRaw?.message}
-            {...form.register('vendorNameRaw')}
+            {...form.register('vendor', {
+              onChange: (e) => {
+                const selected = vendors.find((v) => v._id === e.target.value);
+                form.setValue('vendorNameRaw', selected?.name ?? '', { shouldValidate: true });
+              },
+            })}
           />
+          <input type="hidden" {...form.register('vendorNameRaw')} />
           <Input
             label="Bill No"
             error={form.formState.errors.billNo?.message}
             {...form.register('billNo')}
+          />
+          <Input
+            label="Bill Name"
+            error={form.formState.errors.billName?.message}
+            {...form.register('billName')}
           />
           <Input label="Bill Date" type="date" {...form.register('billDate', { valueAsDate: true })} />
           <Select
@@ -716,6 +769,7 @@ export default function PurchasesPage() {
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailField label="Serial No" value={detailPurchase.serialNo} />
             <DetailField label="Bill No" value={detailPurchase.billNo} />
+            <DetailField label="Bill Name" value={detailPurchase.billName} />
             <DetailField label="Bill Date" value={formatDate(detailPurchase.billDate)} />
             <DetailField label="Vendor Name" value={detailPurchase.vendorNameRaw} />
             <DetailField

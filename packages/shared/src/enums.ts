@@ -23,6 +23,18 @@ export enum TenderStatus {
   CANCELLED = 'cancelled',
 }
 
+export enum InventoryMovementType {
+  PURCHASE_IN = 'PURCHASE_IN',
+  ALLOCATION = 'ALLOCATION',
+  CONSUMPTION = 'CONSUMPTION',
+  ADJUSTMENT = 'ADJUSTMENT',
+}
+
+export enum InventoryDirection {
+  IN = 'IN',
+  OUT = 'OUT',
+}
+
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.ADMIN]: [
     Permission.VIEW_DASHBOARD,

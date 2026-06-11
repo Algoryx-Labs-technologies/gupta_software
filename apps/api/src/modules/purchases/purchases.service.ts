@@ -10,6 +10,7 @@ import { PurchaseModel, getNextPurchaseSerial, type IPurchase, type IPurchaseIte
 import { resolveCreatedByRef } from '../../config/admin.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
+import * as inventorySvc from '../inventory/inventory.service.js';
 
 type LegacyPurchase = IPurchase & {
   itemDescription?: string;
@@ -69,6 +70,7 @@ function buildFilter(filters: PurchaseFilterInput): FilterQuery<IPurchase> {
   if (filters.search) {
     query.$or = [
       { billNo: new RegExp(filters.search, 'i') },
+      { billName: new RegExp(filters.search, 'i') },
       { 'items.itemDescription': new RegExp(filters.search, 'i') },
       { itemDescription: new RegExp(filters.search, 'i') },
       { vendorNameRaw: new RegExp(filters.search, 'i') },
@@ -116,13 +118,21 @@ export async function listForExport(filters: PurchaseFilterInput) {
 export async function create(input: CreatePurchaseInput, userId: string) {
   const totals = applyTotals(input);
   const serialNo = await getNextPurchaseSerial();
+  const resolvedSite = await inventorySvc.resolvePurchaseSiteId({
+    site: input.site,
+    siteNameRaw: input.siteNameRaw,
+  });
 
-  return PurchaseModel.create({
+  const purchase = await PurchaseModel.create({
     ...input,
+    site: resolvedSite ?? input.site,
     ...totals,
     serialNo,
     createdBy: resolveCreatedByRef(userId),
   });
+
+  await inventorySvc.syncPurchaseLedger(purchase, userId);
+  return purchase;
 }
 
 export async function getById(id: string) {
@@ -147,6 +157,12 @@ export async function update(id: string, input: UpdatePurchaseInput) {
     Object.assign(updatePayload, applyTotals({ items: input.items }));
   }
 
+  const resolvedSite = await inventorySvc.resolvePurchaseSiteId({
+    site: (input.site ?? existing.site)?.toString(),
+    siteNameRaw: input.siteNameRaw ?? existing.siteNameRaw,
+  });
+  if (resolvedSite) updatePayload.site = resolvedSite;
+
   const purchase = await PurchaseModel.findByIdAndUpdate(id, updatePayload, {
     new: true,
     runValidators: true,
@@ -156,12 +172,14 @@ export async function update(id: string, input: UpdatePurchaseInput) {
     .populate('site', 'name code')
     .populate('items.item', 'name');
 
+  if (purchase) await inventorySvc.syncPurchaseLedger(purchase, undefined);
   return purchase;
 }
 
 export async function remove(id: string) {
   const purchase = await PurchaseModel.findByIdAndDelete(id);
   if (!purchase) throw new ApiError(404, 'Purchase not found');
+  await inventorySvc.removePurchaseLedger(id);
   return purchase;
 }
 

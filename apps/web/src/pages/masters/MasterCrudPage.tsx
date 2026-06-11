@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import type { z } from 'zod';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
@@ -25,6 +25,7 @@ interface MasterCrudPageProps<T extends { _id: string }> {
   defaultValues: Record<string, unknown>;
   fields: FieldConfig[];
   columns: Column<T>[];
+  detailFields?: FieldConfig[];
   listFn: (params: Record<string, unknown>) => Promise<PaginatedResponse<T>>;
   createFn: (data: Record<string, unknown>) => Promise<T>;
   updateFn: (id: string, data: Record<string, unknown>) => Promise<T>;
@@ -38,6 +39,7 @@ export function MasterCrudPage<T extends { _id: string }>({
   defaultValues,
   fields,
   columns,
+  detailFields,
   listFn,
   createFn,
   updateFn,
@@ -49,6 +51,7 @@ export function MasterCrudPage<T extends { _id: string }>({
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [viewRow, setViewRow] = useState<T | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: [queryKey, page, search],
@@ -98,6 +101,15 @@ export function MasterCrudPage<T extends { _id: string }>({
     header: '',
     render: (row) => (
       <div className="flex gap-1">
+        {detailFields && (
+          <button
+            className="rounded p-1 hover:bg-blue-50"
+            title="View details"
+            onClick={() => setViewRow(row)}
+          >
+            <Eye className="h-4 w-4 text-blue-600" />
+          </button>
+        )}
         <button
           className="rounded p-1 hover:bg-brand-50"
           onClick={() => {
@@ -194,6 +206,45 @@ export function MasterCrudPage<T extends { _id: string }>({
         title="Confirm Delete"
         message="Are you sure you want to delete this record?"
       />
+
+      {detailFields && (
+        <Modal
+          open={!!viewRow}
+          onClose={() => setViewRow(null)}
+          title={`${title.slice(0, -1)} Details`}
+          footer={
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={() => setViewRow(null)}>
+                Close
+              </Button>
+            </div>
+          }
+        >
+          {viewRow && (
+            <dl className="grid gap-4 sm:grid-cols-2">
+              {detailFields.map((f) => {
+                const value = String((viewRow as Record<string, unknown>)[f.name] ?? '').trim();
+                return (
+                  <div key={f.name} className={f.type === 'textarea' ? 'sm:col-span-2' : undefined}>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      {f.label}
+                    </dt>
+                    <dd
+                      className={
+                        f.type === 'textarea'
+                          ? 'mt-1 whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-900'
+                          : 'mt-1 text-sm text-gray-900'
+                      }
+                    >
+                      {value || '—'}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          )}
+        </Modal>
+      )}
     </PageWrapper>
   );
 }

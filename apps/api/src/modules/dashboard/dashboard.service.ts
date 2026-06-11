@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { TenderStatus } from '@gupta/shared';
 import { PurchaseModel } from '../../models/Purchase.js';
 import { TenderModel } from '../../models/Tender.js';
-import { StockModel } from '../../models/Stock.js';
+import * as inventorySvc from '../inventory/inventory.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import * as labourExpenseSvc from '../labour-expenses/labour-expenses.service.js';
 
@@ -72,19 +72,30 @@ async function getLowStock(
   tender?: string,
   selectedTender?: { sites?: { site?: mongoose.Types.ObjectId }[] },
 ) {
-  const stockQuery: Record<string, unknown> = { quantity: { $lte: 5 } };
+  const overview = await inventorySvc.getOverview();
+  let cells = overview.cells.filter((cell) => cell.quantity > 0 && cell.quantity <= 5);
 
   if (tender && selectedTender) {
-    const siteIds = (selectedTender.sites ?? [])
-      .map((s) => s.site)
-      .filter((id): id is mongoose.Types.ObjectId => Boolean(id));
+    const siteIds = new Set(
+      (selectedTender.sites ?? [])
+        .map((s) => s.site?.toString())
+        .filter((id): id is string => Boolean(id)),
+    );
 
-    if (siteIds.length > 0) {
-      stockQuery.site = { $in: siteIds };
+    if (siteIds.size > 0) {
+      cells = cells.filter((cell) => siteIds.has(cell.siteId));
     }
   }
 
-  return StockModel.find(stockQuery).populate('item', 'name').populate('site', 'name').limit(20).lean();
+  return cells.slice(0, 20).map((cell) => {
+    const item = overview.items.find((entry) => entry.key === cell.itemKey);
+    const site = overview.sites.find((entry) => entry._id.toString() === cell.siteId);
+    return {
+      item: { _id: item?.itemId ?? cell.itemKey, name: item?.name ?? 'Unknown' },
+      site: { _id: cell.siteId, name: site?.name ?? 'Unknown' },
+      quantity: cell.quantity,
+    };
+  });
 }
 
 export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string) {
@@ -228,12 +239,12 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
     },
     inventory: {
       lowStock: lowStock.map((s) => {
-        const item = s.item as unknown as { _id?: { toString(): string }; name?: string } | null;
-        const site = s.site as unknown as { _id?: { toString(): string }; name?: string } | null;
+        const item = s.item as { _id?: string; name?: string };
+        const site = s.site as { _id?: string; name?: string };
         return {
-          itemId: item?._id?.toString?.() ?? String(s.item),
+          itemId: item?._id?.toString?.() ?? '',
           itemName: item?.name ?? 'Unknown',
-          siteId: site?._id?.toString?.() ?? String(s.site),
+          siteId: site?._id?.toString?.() ?? '',
           siteName: site?.name ?? 'Unknown',
           quantity: s.quantity,
         };

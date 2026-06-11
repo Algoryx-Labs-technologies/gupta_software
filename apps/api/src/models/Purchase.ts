@@ -29,6 +29,7 @@ export interface IPurchase extends Document {
   tender?: Types.ObjectId;
   billDate: Date;
   billNo: string;
+  billName: string;
   site?: Types.ObjectId;
   siteNameRaw: string;
   items: IPurchaseItem[];
@@ -77,6 +78,7 @@ const purchaseSchema = new Schema<IPurchase>(
     tender: { type: Schema.Types.ObjectId, ref: 'Tender' },
     billDate: { type: Date, required: true },
     billNo: { type: String, required: true, trim: true },
+    billName: { type: String, trim: true, default: '' },
     site: { type: Schema.Types.ObjectId, ref: 'Site' },
     siteNameRaw: { type: String, required: true, trim: true },
     items: { type: [purchaseItemSchema], required: true, validate: [(v: IPurchaseItem[]) => v.length > 0, 'At least one item is required'] },
@@ -94,7 +96,7 @@ purchaseSchema.index({ billDate: -1 });
 purchaseSchema.index({ site: 1, billDate: -1 });
 purchaseSchema.index({ vendor: 1 });
 purchaseSchema.index({ tender: 1 });
-purchaseSchema.index({ billNo: 'text', vendorNameRaw: 'text', 'items.itemDescription': 'text' });
+purchaseSchema.index({ billNo: 'text', billName: 'text', vendorNameRaw: 'text', 'items.itemDescription': 'text' });
 
 export const PurchaseModel = mongoose.model<IPurchase>('Purchase', purchaseSchema);
 

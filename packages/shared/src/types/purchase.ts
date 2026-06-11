@@ -24,6 +24,7 @@ export interface Purchase {
   tender?: string;
   billDate: string | Date;
   billNo: string;
+  billName?: string;
   site: string;
   siteNameRaw: string;
   items: PurchaseItem[];
