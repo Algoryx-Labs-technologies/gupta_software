@@ -35,6 +35,12 @@ export enum InventoryDirection {
   OUT = 'OUT',
 }
 
+export enum EmployeeAssignmentStatus {
+  UNASSIGNED = 'unassigned',
+  ASSIGNED = 'assigned',
+  CHANGED = 'changed',
+}
+
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.ADMIN]: [
     Permission.VIEW_DASHBOARD,

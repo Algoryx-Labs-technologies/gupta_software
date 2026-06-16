@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Shield,
   HardHat,
+  Wallet,
 } from 'lucide-react';
 import { Permission } from '@gupta/shared';
 
@@ -42,6 +43,12 @@ export const navConfig: NavItem[] = [
     label: 'Labour Expense',
     path: '/labour-expenses',
     icon: HardHat,
+    permission: Permission.MANAGE_PURCHASES,
+  },
+  {
+    label: 'Employee Salary',
+    path: '/employee-salary',
+    icon: Wallet,
     permission: Permission.MANAGE_PURCHASES,
   },
   {
