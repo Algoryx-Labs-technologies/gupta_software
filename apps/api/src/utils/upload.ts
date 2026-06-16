@@ -3,7 +3,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import multer from 'multer';
 
-const uploadDir = path.resolve(__dirname, '../../../uploads');
+export const uploadDir = path.resolve(__dirname, '../../uploads');
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });

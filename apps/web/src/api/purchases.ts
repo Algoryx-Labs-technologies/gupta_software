@@ -15,8 +15,10 @@ export const purchasesApi = {
   uploadAttachment: (id: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return api.post(`/purchases/${id}/attachments`, form, {
+    return api.post<Purchase>(`/purchases/${id}/attachments`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    }).then((r) => r.data);
   },
+  deleteAttachment: (id: string, attId: string) =>
+    api.delete<Purchase>(`/purchases/${id}/attachments/${attId}`).then((r) => r.data),
 };

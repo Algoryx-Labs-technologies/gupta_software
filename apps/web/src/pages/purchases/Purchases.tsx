@@ -2,11 +2,12 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Pencil, Trash2, Download, FileSpreadsheet, X, Info } from 'lucide-react';
+import { Plus, Pencil, Trash2, Download, FileSpreadsheet, X, Info, FileText } from 'lucide-react';
 import {
   createPurchaseSchema,
   computePurchaseTotals,
   computePurchaseAggregateTotals,
+  type Attachment,
   type CreatePurchaseInput,
   type Purchase,
   type PurchaseItemInput,
@@ -204,6 +205,8 @@ export default function PurchasesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [infoId, setInfoId] = useState<string | null>(null);
   const [selectedSiteKey, setSelectedSiteKey] = useState('');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [existingAttachments, setExistingAttachments] = useState<Attachment[]>([]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchases', page, search],
@@ -328,23 +331,11 @@ export default function PurchasesPage() {
 
   const createMutation = useMutation({
     mutationFn: purchasesApi.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      toast.success('Purchase created');
-      closeModal();
-    },
-    onError: () => toast.error('Failed to create purchase'),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CreatePurchaseInput }) =>
       purchasesApi.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      toast.success('Purchase updated');
-      closeModal();
-    },
-    onError: () => toast.error('Failed to update purchase'),
   });
 
   const deleteMutation = useMutation({
@@ -360,12 +351,49 @@ export default function PurchasesPage() {
     setModalOpen(false);
     setEditId(null);
     setSelectedSiteKey('');
+    setReceiptFile(null);
+    setExistingAttachments([]);
     form.reset(defaultFormValues());
+  };
+
+  const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setReceiptFile(null);
+      return;
+    }
+    const isPdf =
+      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      toast.error('Only PDF receipts are allowed');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Receipt must be under 10 MB');
+      e.target.value = '';
+      return;
+    }
+    setReceiptFile(file);
+  };
+
+  const handleDeleteAttachment = async (attId: string) => {
+    if (!editId) return;
+    try {
+      const updated = await purchasesApi.deleteAttachment(editId, attId);
+      setExistingAttachments(updated.attachments ?? []);
+      queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      toast.success('Receipt removed');
+    } catch {
+      toast.error('Failed to remove receipt');
+    }
   };
 
   const openCreate = () => {
     form.reset(defaultFormValues());
     setSelectedSiteKey('');
+    setReceiptFile(null);
+    setExistingAttachments([]);
     setEditId(null);
     setModalOpen(true);
   };
@@ -376,6 +404,8 @@ export default function PurchasesPage() {
       const values = purchaseToFormValues(full);
       form.reset(values);
       setEditId(purchase._id);
+      setReceiptFile(null);
+      setExistingAttachments(full.attachments ?? []);
       setModalOpen(true);
       syncSiteKeyFromForm(values.tender, values.site, values.siteNameRaw);
     } catch {
@@ -383,9 +413,29 @@ export default function PurchasesPage() {
     }
   };
 
-  const onSubmit = (data: CreatePurchaseInput) => {
-    if (editId) updateMutation.mutate({ id: editId, data });
-    else createMutation.mutate(data);
+  const onSubmit = async (data: CreatePurchaseInput) => {
+    try {
+      if (editId) {
+        await updateMutation.mutateAsync({ id: editId, data });
+        if (receiptFile) {
+          const updated = await purchasesApi.uploadAttachment(editId, receiptFile);
+          setExistingAttachments(updated.attachments ?? []);
+        }
+        queryClient.invalidateQueries({ queryKey: ['purchases'] });
+        toast.success('Purchase updated');
+        closeModal();
+      } else {
+        const purchase = await createMutation.mutateAsync(data);
+        if (receiptFile) {
+          await purchasesApi.uploadAttachment(purchase._id, receiptFile);
+        }
+        queryClient.invalidateQueries({ queryKey: ['purchases'] });
+        toast.success('Purchase created');
+        closeModal();
+      }
+    } catch {
+      toast.error(editId ? 'Failed to update purchase' : 'Failed to create purchase');
+    }
   };
 
   const handleExportExcel = async () => {
@@ -736,6 +786,64 @@ export default function PurchasesPage() {
           <div className="sm:col-span-2">
             <Textarea label="Notes" {...form.register('notes')} />
           </div>
+
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">
+              Receipt (PDF)
+            </label>
+            {existingAttachments.length > 0 && (
+              <ul className="mb-3 space-y-2">
+                {existingAttachments.map((attachment, index) => (
+                  <li
+                    key={attachment._id ?? index}
+                    className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+                  >
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 font-medium text-brand-600 hover:underline"
+                    >
+                      <FileText className="h-4 w-4" />
+                      {attachment.filename}
+                    </a>
+                    {editId && attachment._id && (
+                      <button
+                        type="button"
+                        className="rounded p-1 text-red-500 hover:bg-red-50"
+                        onClick={() => handleDeleteAttachment(attachment._id!)}
+                        title="Remove receipt"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 transition hover:border-brand-400 hover:bg-brand-50/30">
+              <FileText className="mb-2 h-8 w-8 text-gray-400" />
+              <span className="text-sm font-medium text-gray-700">
+                {receiptFile ? receiptFile.name : 'Click to upload PDF receipt'}
+              </span>
+              <span className="mt-1 text-xs text-gray-500">PDF only, max 10 MB</span>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={handleReceiptChange}
+              />
+            </label>
+            {receiptFile && (
+              <button
+                type="button"
+                className="mt-2 text-sm text-red-600 hover:underline"
+                onClick={() => setReceiptFile(null)}
+              >
+                Remove selected file
+              </button>
+            )}
+          </div>
         </form>
       </Modal>
 
@@ -832,7 +940,7 @@ export default function PurchasesPage() {
             </div>
 
             <div className="sm:col-span-2">
-              <dt className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Attachments</dt>
+              <dt className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Receipts</dt>
               <dd>
                 {detailPurchase.attachments?.length ? (
                   <ul className="space-y-2">
@@ -845,8 +953,9 @@ export default function PurchasesPage() {
                           href={attachment.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-medium text-brand-600 hover:underline"
+                          className="inline-flex items-center gap-2 font-medium text-brand-600 hover:underline"
                         >
+                          <FileText className="h-4 w-4" />
                           {attachment.filename}
                         </a>
                         <span className="text-gray-500">{formatDateTime(attachment.uploadedAt)}</span>

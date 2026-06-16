@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import type { Request, Response } from 'express';
 import * as svc from './purchases.service.js';
 
@@ -28,6 +30,14 @@ export async function uploadAttachment(req: Request, res: Response) {
     res.status(400).json({ message: 'No file uploaded' });
     return;
   }
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  if (ext !== '.pdf') {
+    fs.unlinkSync(req.file.path);
+    res.status(400).json({ message: 'Only PDF receipts are allowed' });
+    return;
+  }
+
   const url = `/uploads/${req.file.filename}`;
   res.json(await svc.addAttachment(req.params.id, req.file.originalname, url));
 }
