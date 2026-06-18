@@ -41,6 +41,7 @@ export function isSystemAdminSub(sub: string): boolean {
 }
 
 /** Maps JWT sub to a MongoDB User ref; env admin has no User document. */
-export function resolveCreatedByRef(sub: string): string | undefined {
-  return isSystemAdminSub(sub) ? undefined : sub;
+export function resolveCreatedByRef(sub?: string): string | undefined {
+  if (!sub || isSystemAdminSub(sub)) return undefined;
+  return sub;
 }

@@ -117,7 +117,7 @@ export async function syncPurchaseLedger(purchase: IPurchase, userId?: string) {
       purchaseItemId: line._id?.toString(),
       purchaseSerialNo: purchase.serialNo,
       billNo: purchase.billNo,
-      createdBy: resolveCreatedByRef(userId ?? ''),
+      createdBy: resolveCreatedByRef(userId),
     }));
 
   if (docs.length) await InventoryLedgerModel.insertMany(docs);
@@ -321,7 +321,7 @@ export async function allocateStock(input: AllocateStockInput, userId?: string) 
     unit: input.unit,
     quantity: input.quantity,
     notes: input.notes,
-    createdBy: resolveCreatedByRef(userId ?? ''),
+    createdBy: resolveCreatedByRef(userId),
   };
 
   await InventoryLedgerModel.insertMany([
@@ -344,7 +344,7 @@ export async function consumeStock(input: ConsumeStockInput, userId?: string) {
     site: input.siteId,
     quantity: input.quantity,
     notes: input.notes,
-    createdBy: resolveCreatedByRef(userId ?? ''),
+    createdBy: resolveCreatedByRef(userId),
   });
 
   return { message: 'Stock issued successfully' };
