@@ -1,0 +1,4 @@
+# Use this file (not root .gitignore) when packaging for `pnpm deploy`.
+# Keeps built `dist/` while excluding source and dev-only files.
+src/
+tsconfig.json
