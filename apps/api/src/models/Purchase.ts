@@ -1,6 +1,7 @@
 import mongoose, { Schema, type Document, type Types } from 'mongoose';
 
 export interface IAttachment {
+  _id?: Types.ObjectId;
   filename: string;
   url: string;
   uploadedAt: Date;

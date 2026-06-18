@@ -18,14 +18,12 @@ import { tendersApi } from '@/api/tenders';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { StatCard } from '@/components/StatCard';
 import { Spinner } from '@/components/Spinner';
-import { Input, Select } from '@/components/Input';
+import { Select } from '@/components/Input';
 import { formatCurrency, formatNumber } from '@/lib/formatters';
 
 const PIE_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#64748B'];
 
 export default function DashboardPage() {
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [tenderId, setTenderId] = useState('');
 
   const { data: tendersData } = useQuery({
@@ -47,11 +45,9 @@ export default function DashboardPage() {
   const selectedTenderLabel = tenderOptions.find((t) => t.value === tenderId)?.label;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard', dateFrom, dateTo, tenderId],
+    queryKey: ['dashboard', tenderId],
     queryFn: () =>
       dashboardApi.summary({
-        ...(dateFrom && { dateFrom }),
-        ...(dateTo && { dateTo }),
         ...(tenderId && { tender: tenderId }),
       }),
   });
@@ -61,33 +57,19 @@ export default function DashboardPage() {
         { name: 'Active', value: data.tenders.activeCount },
         { name: 'Completed', value: data.tenders.completedCount },
         { name: 'Pending', value: data.tenders.pendingCount },
+        { name: 'Expired', value: data.tenders.expiredCount },
+        { name: 'Cancelled', value: data.tenders.cancelledCount },
       ].filter((d) => d.value > 0)
     : [];
 
   const filters = (
-    <div className="flex flex-wrap items-end gap-2">
-      <Select
-        label="Tender"
-        options={tenderOptions}
-        value={tenderId}
-        onChange={(e) => setTenderId(e.target.value)}
-        className="!w-auto min-w-[200px]"
-      />
-      <Input
-        type="date"
-        label="From"
-        value={dateFrom}
-        onChange={(e) => setDateFrom(e.target.value)}
-        className="!w-auto"
-      />
-      <Input
-        type="date"
-        label="To"
-        value={dateTo}
-        onChange={(e) => setDateTo(e.target.value)}
-        className="!w-auto"
-      />
-    </div>
+    <Select
+      label="Tender"
+      options={tenderOptions}
+      value={tenderId}
+      onChange={(e) => setTenderId(e.target.value)}
+      className="!w-auto min-w-[200px]"
+    />
   );
 
   return (
@@ -127,7 +109,7 @@ export default function DashboardPage() {
               subtitle={
                 tenderId
                   ? selectedTenderLabel
-                  : formatCurrency(data.tenders.totalOrderValue) + ' order value'
+                  : formatCurrency(data.tenders.activeOrderValue) + ' active order value'
               }
               icon={FileText}
             />

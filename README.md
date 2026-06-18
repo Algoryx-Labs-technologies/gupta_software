@@ -97,6 +97,7 @@ packages/
 - `CORS_ORIGIN` — Frontend URL (default: http://localhost:5173)
 - `PORT` — API port (default: 5000)
 - `ADMIN_LOGIN_ID` / `ADMIN_PASSWORD` — admin portal (not stored in MongoDB)
+- `DO_SPACES_KEY` / `DO_SPACES_SECRET` / `DO_SPACES_BUCKET` / `DO_SPACES_REGION` — DigitalOcean Spaces for PDF receipts and attachments
 
 **Web** (`apps/web/.env`):
 

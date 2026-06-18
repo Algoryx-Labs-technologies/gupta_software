@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { storeAttachment } from '../../utils/attachmentStorage.js';
 import * as svc from './tenders.service.js';
 
 export async function list(req: Request, res: Response) {
@@ -27,8 +28,9 @@ export async function uploadAttachment(req: Request, res: Response) {
     res.status(400).json({ message: 'No file uploaded' });
     return;
   }
-  const url = `/uploads/${req.file.filename}`;
-  res.json(await svc.addAttachment(req.params.id, req.file.originalname, url));
+
+  const stored = await storeAttachment(req.file, 'tenders');
+  res.json(await svc.addAttachment(req.params.id, stored.filename, stored.url));
 }
 
 export async function exportData(req: Request, res: Response) {

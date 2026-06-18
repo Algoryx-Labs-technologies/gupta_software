@@ -1,6 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import type { Request, Response } from 'express';
+import { storeAttachment } from '../../utils/attachmentStorage.js';
 import * as svc from './purchases.service.js';
 
 export async function list(req: Request, res: Response) {
@@ -31,15 +30,8 @@ export async function uploadAttachment(req: Request, res: Response) {
     return;
   }
 
-  const ext = path.extname(req.file.originalname).toLowerCase();
-  if (ext !== '.pdf') {
-    fs.unlinkSync(req.file.path);
-    res.status(400).json({ message: 'Only PDF receipts are allowed' });
-    return;
-  }
-
-  const url = `/uploads/${req.file.filename}`;
-  res.json(await svc.addAttachment(req.params.id, req.file.originalname, url));
+  const stored = await storeAttachment(req.file, 'purchases', { pdfOnly: true });
+  res.json(await svc.addAttachment(req.params.id, stored.filename, stored.url));
 }
 
 export async function deleteAttachment(req: Request, res: Response) {

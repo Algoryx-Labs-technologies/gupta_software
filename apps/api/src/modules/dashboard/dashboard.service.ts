@@ -6,6 +6,25 @@ import * as inventorySvc from '../inventory/inventory.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import * as labourExpenseSvc from '../labour-expenses/labour-expenses.service.js';
 
+function startOfDay(date: Date): Date {
+  const start = new Date(date);
+  start.setUTCHours(0, 0, 0, 0);
+  return start;
+}
+
+function endOfDay(date: Date): Date {
+  const end = new Date(date);
+  end.setUTCHours(23, 59, 59, 999);
+  return end;
+}
+
+function normalizeDateRange(dateFrom?: Date, dateTo?: Date) {
+  return {
+    dateFrom: dateFrom ? startOfDay(dateFrom) : undefined,
+    dateTo: dateTo ? endOfDay(dateTo) : undefined,
+  };
+}
+
 function buildPurchaseMatch(dateFrom?: Date, dateTo?: Date, tender?: string) {
   const purchaseMatch: Record<string, unknown> = {};
   if (tender) purchaseMatch.tender = new mongoose.Types.ObjectId(tender);
@@ -26,6 +45,11 @@ async function getTenderSection(tender?: string) {
             _id: null,
             totalOrderValue: { $sum: '$orderValue' },
             totalOutstanding: { $sum: '$paymentOutstanding' },
+            activeOrderValue: {
+              $sum: {
+                $cond: [{ $eq: ['$status', TenderStatus.ACTIVE] }, '$orderValue', 0],
+              },
+            },
           },
         },
       ]),
@@ -61,7 +85,13 @@ async function getTenderSection(tender?: string) {
       : [];
 
   return {
-    tenderStats: [{ totalOrderValue: selected.orderValue, totalOutstanding: selected.paymentOutstanding }],
+    tenderStats: [
+      {
+        totalOrderValue: selected.orderValue,
+        totalOutstanding: selected.paymentOutstanding,
+        activeOrderValue: selected.status === TenderStatus.ACTIVE ? selected.orderValue : 0,
+      },
+    ],
     statusCounts: [{ _id: selected.status, count: 1 }],
     expiringBgs,
     selected,
@@ -75,16 +105,18 @@ async function getLowStock(
   const overview = await inventorySvc.getOverview();
   let cells = overview.cells.filter((cell) => cell.quantity > 0 && cell.quantity <= 5);
 
-  if (tender && selectedTender) {
+  if (tender) {
+    if (!selectedTender) return [];
+
     const siteIds = new Set(
       (selectedTender.sites ?? [])
         .map((s) => s.site?.toString())
         .filter((id): id is string => Boolean(id)),
     );
 
-    if (siteIds.size > 0) {
-      cells = cells.filter((cell) => siteIds.has(cell.siteId));
-    }
+    if (siteIds.size === 0) return [];
+
+    cells = cells.filter((cell) => siteIds.has(cell.siteId));
   }
 
   return cells.slice(0, 20).map((cell) => {
@@ -99,7 +131,12 @@ async function getLowStock(
 }
 
 export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string) {
-  const purchaseMatch = buildPurchaseMatch(dateFrom, dateTo, tender);
+  const normalizedDates = normalizeDateRange(dateFrom, dateTo);
+  const purchaseMatch = buildPurchaseMatch(
+    normalizedDates.dateFrom,
+    normalizedDates.dateTo,
+    tender,
+  );
   const tenderSection = await getTenderSection(tender);
   const selectedTender = 'selected' in tenderSection ? tenderSection.selected : undefined;
 
@@ -119,7 +156,25 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
           totalCount: { $sum: 1 },
           totalGrandValue: { $sum: '$grandTotal' },
           totalGst: { $sum: '$gstAmount' },
-          totalFreightLabour: { $sum: { $add: ['$freight', '$labour'] } },
+          totalFreightLabour: {
+            $sum: {
+              $reduce: {
+                input: '$items',
+                initialValue: 0,
+                in: {
+                  $add: [
+                    '$$value',
+                    {
+                      $add: [
+                        { $ifNull: ['$$this.freight', 0] },
+                        { $ifNull: ['$$this.labour', 0] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
         },
       },
     ]),
@@ -172,7 +227,11 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
       },
     ]),
     getLowStock(tender, selectedTender),
-    labourExpenseSvc.getSummaryStats(dateFrom, dateTo, tender),
+    labourExpenseSvc.getSummaryStats(
+      normalizedDates.dateFrom,
+      normalizedDates.dateTo,
+      tender,
+    ),
   ]);
 
   const { tenderStats, statusCounts, expiringBgs } = tenderSection;
@@ -184,7 +243,11 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
     totalFreightLabour: 0,
   };
 
-  const tenderAgg = tenderStats[0] ?? { totalOrderValue: 0, totalOutstanding: 0 };
+  const tenderAgg = tenderStats[0] ?? {
+    totalOrderValue: 0,
+    totalOutstanding: 0,
+    activeOrderValue: 0,
+  };
   const statusMap = Object.fromEntries(statusCounts.map((s) => [s._id, s.count]));
 
   return {
@@ -208,10 +271,13 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
     },
     tenders: {
       totalOrderValue: tenderAgg.totalOrderValue,
+      activeOrderValue: tenderAgg.activeOrderValue ?? 0,
       totalOutstanding: tenderAgg.totalOutstanding,
       activeCount: statusMap[TenderStatus.ACTIVE] ?? 0,
       completedCount: statusMap[TenderStatus.COMPLETED] ?? 0,
       pendingCount: statusMap[TenderStatus.PENDING] ?? 0,
+      expiredCount: statusMap[TenderStatus.EXPIRED] ?? 0,
+      cancelledCount: statusMap[TenderStatus.CANCELLED] ?? 0,
       expiringBgs: expiringBgs.map((t) => ({
         _id: t._id.toString(),
         tenderName: t.tenderName,

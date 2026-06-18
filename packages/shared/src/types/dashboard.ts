@@ -10,10 +10,13 @@ export interface DashboardSummary {
   };
   tenders: {
     totalOrderValue: number;
+    activeOrderValue: number;
     totalOutstanding: number;
     activeCount: number;
     completedCount: number;
     pendingCount: number;
+    expiredCount: number;
+    cancelledCount: number;
     expiringBgs: {
       _id: string;
       tenderName: string;

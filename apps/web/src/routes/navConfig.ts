@@ -70,12 +70,6 @@ export const navConfig: NavItem[] = [
     permission: Permission.MANAGE_MASTERS,
   },
   {
-    label: 'Items',
-    path: '/items',
-    icon: ClipboardList,
-    permission: Permission.MANAGE_MASTERS,
-  },
-  {
     label: 'Team & Roles',
     path: '/admin/team',
     icon: Shield,

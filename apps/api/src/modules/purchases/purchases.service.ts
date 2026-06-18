@@ -9,6 +9,7 @@ import {
 import { PurchaseModel, getNextPurchaseSerial, type IPurchase, type IPurchaseItem } from '../../models/Purchase.js';
 import { resolveCreatedByRef } from '../../config/admin.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { removeStoredAttachment } from '../../utils/attachmentStorage.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
 import * as inventorySvc from '../inventory/inventory.service.js';
 
@@ -194,11 +195,19 @@ export async function addAttachment(id: string, filename: string, url: string) {
 }
 
 export async function removeAttachment(id: string, attId: string) {
-  const purchase = await PurchaseModel.findByIdAndUpdate(
+  const purchase = await PurchaseModel.findById(id);
+  if (!purchase) throw new ApiError(404, 'Purchase not found');
+
+  const attachment = purchase.attachments.find((att) => att._id?.toString() === attId);
+  if (attachment?.url && attachment.url.startsWith('http')) {
+    await removeStoredAttachment(attachment.url);
+  }
+
+  const updated = await PurchaseModel.findByIdAndUpdate(
     id,
     { $pull: { attachments: { _id: attId } } },
     { new: true },
   );
-  if (!purchase) throw new ApiError(404, 'Purchase not found');
-  return purchase;
+  if (!updated) throw new ApiError(404, 'Purchase not found');
+  return updated;
 }

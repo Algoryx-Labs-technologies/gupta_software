@@ -32,6 +32,12 @@ const envSchema = z.object({
   ADMIN_PASSWORD: z.string().min(8),
   ADMIN_PASSWORD_HASH: z.string().optional(),
   ADMIN_DISPLAY_NAME: z.string().default('System Admin'),
+  DO_SPACES_KEY: z.string().min(1),
+  DO_SPACES_SECRET: z.string().min(1),
+  DO_SPACES_BUCKET: z.string().min(1),
+  DO_SPACES_REGION: z.string().min(1),
+  DO_SPACES_ENDPOINT: z.string().url().optional(),
+  DO_SPACES_PUBLIC_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
