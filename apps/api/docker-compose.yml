@@ -1,5 +1,22 @@
 name: gupta-api
 
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: 5000
+  MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-gupta}:${MONGO_ROOT_PASSWORD:-changeme}@mongo:27017/gupta_traders?authSource=admin
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-min-32-chars}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-min-32-chars}
+  JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-15m}
+  JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES:-7d}
+  CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+  ADMIN_LOGIN_ID: ${ADMIN_LOGIN_ID:-admin}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-admin-password-min-8-chars}
+  ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-System Admin}
+  DO_SPACES_KEY: ${DO_SPACES_KEY:-your-spaces-access-key}
+  DO_SPACES_SECRET: ${DO_SPACES_SECRET:-your-spaces-secret-key}
+  DO_SPACES_BUCKET: ${DO_SPACES_BUCKET:-your-bucket-name}
+  DO_SPACES_REGION: ${DO_SPACES_REGION:-blr1}
+
 services:
   api:
     build:
@@ -10,11 +27,10 @@ services:
     ports:
       - "${API_PORT:-5000}:5000"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      NODE_ENV: production
-      PORT: 5000
-      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-gupta}:${MONGO_ROOT_PASSWORD:-changeme}@mongo:27017/gupta_traders?authSource=admin
+      <<: *api-env
     depends_on:
       mongo:
         condition: service_healthy
@@ -69,9 +85,10 @@ services:
     working_dir: /app
     command: ["pnpm", "--filter", "api", "seed"]
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-gupta}:${MONGO_ROOT_PASSWORD:-changeme}@mongo:27017/gupta_traders?authSource=admin
+      <<: *api-env
     depends_on:
       mongo:
         condition: service_healthy
