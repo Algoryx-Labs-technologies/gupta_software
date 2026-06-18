@@ -28,7 +28,12 @@ COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 
-RUN pnpm --filter @gupta/shared build \
+# Clean stale artifacts, build shared declarations first, then api.
+RUN rm -rf packages/shared/dist packages/shared/tsconfig.tsbuildinfo \
+    apps/api/dist apps/api/tsconfig.tsbuildinfo \
+    && pnpm --filter @gupta/shared exec tsc --build --force \
+    && test -f packages/shared/dist/index.js \
+    && test -f packages/shared/dist/index.d.ts \
     && pnpm --filter api build
 
 # Portable production bundle (api + prod deps + built shared)

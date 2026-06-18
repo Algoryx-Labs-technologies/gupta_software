@@ -1,2 +1,4 @@
+# Keep dist/ (including .d.ts) in deploy bundles; exclude source only.
 src/
 tsconfig.json
+tsconfig.tsbuildinfo
