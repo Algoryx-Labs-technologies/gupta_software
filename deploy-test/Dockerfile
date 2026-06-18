@@ -38,7 +38,7 @@ RUN rm -rf packages/shared/dist packages/shared/tsconfig.tsbuildinfo \
 
 # Portable production bundle (api + prod deps + built shared)
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm deploy --filter=api --prod /prod/api
+    pnpm deploy --filter=api --prod --legacy /prod/api
 
 # ── Production runtime ────────────────────────────────────────────────────────
 FROM node:22-alpine AS production

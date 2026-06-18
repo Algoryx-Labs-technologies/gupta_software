@@ -2,9 +2,6 @@
   "name": "api",
   "version": "1.0.0",
   "private": true,
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

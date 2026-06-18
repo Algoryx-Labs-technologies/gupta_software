@@ -1,0 +1,103 @@
+name: gupta-api
+
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: 5000
+  MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-gupta}:${MONGO_ROOT_PASSWORD:-changeme}@mongo:27017/gupta_traders?authSource=admin
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-min-32-chars}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-min-32-chars}
+  JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-15m}
+  JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES:-7d}
+  CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+  ADMIN_LOGIN_ID: ${ADMIN_LOGIN_ID:-admin}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-admin-password-min-8-chars}
+  ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-System Admin}
+  DO_SPACES_KEY: ${DO_SPACES_KEY:-your-spaces-access-key}
+  DO_SPACES_SECRET: ${DO_SPACES_SECRET:-your-spaces-secret-key}
+  DO_SPACES_BUCKET: ${DO_SPACES_BUCKET:-your-bucket-name}
+  DO_SPACES_REGION: ${DO_SPACES_REGION:-blr1}
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: gupta-api:latest
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-5000}:5000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *api-env
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - gupta
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-gupta}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: gupta_traders
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "mongodb://$${MONGO_INITDB_ROOT_USERNAME}:$${MONGO_INITDB_ROOT_PASSWORD}@localhost:27017/admin",
+          "--eval",
+          "db.adminCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - gupta
+
+  # One-shot seed (optional): docker compose --profile seed run --rm seed
+  seed:
+    profiles: [seed]
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: build
+    working_dir: /app
+    command: ["pnpm", "--filter", "api", "seed"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *api-env
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - gupta
+
+volumes:
+  mongo_data:
+
+networks:
+  gupta:
+    driver: bridge
