@@ -5,7 +5,9 @@ FROM node:22-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+# Pin pnpm 9 (lockfile v9). Corepack otherwise pulls pnpm 11, which rejects
+# recently published lockfile entries via minimumReleaseAge supply-chain checks.
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /app
 

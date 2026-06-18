@@ -1,3 +1,7 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+# pnpm 11+ defaults to 1440 (24h). Set 0 so `pnpm install --frozen-lockfile`
+# installs the exact versions in pnpm-lock.yaml without supply-chain rejection.
+minimumReleaseAge: 0
