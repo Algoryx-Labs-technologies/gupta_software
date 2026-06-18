@@ -76,24 +76,24 @@ services:
       - gupta
 
   # One-shot seed (optional): docker compose --profile seed run --rm seed
-  seed:
-    profiles: [seed]
-    build:
-      context: ../..
-      dockerfile: apps/api/Dockerfile
-      target: build
-    working_dir: /app
-    command: ["pnpm", "--filter", "api", "seed"]
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      <<: *api-env
-    depends_on:
-      mongo:
-        condition: service_healthy
-    networks:
-      - gupta
+  # seed:
+  #   profiles: [seed]
+  #   build:
+  #     context: ../..
+  #     dockerfile: apps/api/Dockerfile
+  #     target: build
+  #   working_dir: /app
+  #   command: ["pnpm", "--filter", "api", "seed"]
+  #   env_file:
+  #     - path: .env
+  #       required: false
+  #   environment:
+  #     <<: *api-env
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
+  #   networks:
+  #     - gupta
 
 volumes:
   mongo_data:
