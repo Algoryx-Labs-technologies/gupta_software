@@ -27,7 +27,7 @@ import { Modal, ConfirmDialog } from '@/components/Modal';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { toast } from 'sonner';
+import { toast } from '@/lib/notify';
 
 type ActionMode = 'assign' | 'change' | 'unassign' | null;
 

@@ -90,10 +90,11 @@ export async function list(filters: PurchaseFilterInput) {
 
   const [data, total] = await Promise.all([
     PurchaseModel.find(filter)
-      .populate('vendor', 'name')
-      .populate('tender', 'tenderName tenderNo')
+      .populate('vendor', 'name code gstin')
+      .populate('tender', 'tenderName tenderNo code')
       .populate('site', 'name code')
       .populate('items.item', 'name')
+      .populate('items.category', 'name code')
       .populate('createdBy', 'name')
       .sort(sort)
       .skip(skip)
@@ -108,8 +109,8 @@ export async function list(filters: PurchaseFilterInput) {
 export async function listForExport(filters: PurchaseFilterInput) {
   const filter = buildFilter(filters);
   const data = await PurchaseModel.find(filter)
-    .populate('vendor', 'name')
-    .populate('tender', 'tenderName tenderNo')
+    .populate('vendor', 'name code')
+    .populate('tender', 'tenderName tenderNo code')
     .populate('site', 'name code')
     .sort({ billDate: -1 })
     .lean();
@@ -138,10 +139,11 @@ export async function create(input: CreatePurchaseInput, userId: string) {
 
 export async function getById(id: string) {
   const purchase = await PurchaseModel.findById(id)
-    .populate('vendor', 'name gstin')
-    .populate('tender', 'tenderName tenderNo')
+    .populate('vendor', 'name code gstin')
+    .populate('tender', 'tenderName tenderNo code')
     .populate('site', 'name code')
     .populate('items.item', 'name')
+    .populate('items.category', 'name code')
     .populate('createdBy', 'name email');
 
   if (!purchase) throw new ApiError(404, 'Purchase not found');
@@ -168,10 +170,11 @@ export async function update(id: string, input: UpdatePurchaseInput) {
     new: true,
     runValidators: true,
   })
-    .populate('vendor', 'name')
-    .populate('tender', 'tenderName tenderNo')
+    .populate('vendor', 'name code')
+    .populate('tender', 'tenderName tenderNo code')
     .populate('site', 'name code')
-    .populate('items.item', 'name');
+    .populate('items.item', 'name')
+    .populate('items.category', 'name code');
 
   if (purchase) await inventorySvc.syncPurchaseLedger(purchase, undefined);
   return purchase;

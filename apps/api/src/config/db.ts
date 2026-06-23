@@ -1,6 +1,7 @@
 import dns from 'dns';
 import mongoose from 'mongoose';
 import { env } from './env.js';
+import { backfillEntityCodes } from '../utils/backfillEntityCodes.js';
 
 function configureMongoDns(): void {
   if (!env.MONGODB_DNS_SERVERS?.length) return;
@@ -18,6 +19,7 @@ export async function connectDb(): Promise<void> {
       serverSelectionTimeoutMS: 15000,
     });
     console.log('MongoDB connected');
+    await backfillEntityCodes();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('\nMongoDB connection failed:', message);

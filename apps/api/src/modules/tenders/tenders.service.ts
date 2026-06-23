@@ -9,6 +9,7 @@ import { TenderModel, getNextTenderSerial, type ITender } from '../../models/Ten
 import { LabourExpenseModel } from '../../models/LabourExpense.js';
 import { resolveCreatedByRef } from '../../config/admin.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { formatEntityCode } from '../../utils/entityCode.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
 
 function buildFilter(filters: TenderFilterInput): FilterQuery<ITender> {
@@ -18,6 +19,7 @@ function buildFilter(filters: TenderFilterInput): FilterQuery<ITender> {
     query.$or = [
       { tenderName: new RegExp(filters.search, 'i') },
       { tenderNo: new RegExp(filters.search, 'i') },
+      { code: new RegExp(filters.search, 'i') },
       { bgNumber: new RegExp(filters.search, 'i') },
       { 'sites.siteNameRaw': new RegExp(filters.search, 'i') },
     ];
@@ -63,7 +65,8 @@ export async function listForExport(filters: TenderFilterInput) {
 
 export async function create(input: CreateTenderInput, userId: string) {
   const serialNo = await getNextTenderSerial();
-  return TenderModel.create({ ...input, serialNo, createdBy: resolveCreatedByRef(userId) });
+  const code = formatEntityCode('TND', serialNo);
+  return TenderModel.create({ ...input, serialNo, code, createdBy: resolveCreatedByRef(userId) });
 }
 
 export async function getById(id: string) {

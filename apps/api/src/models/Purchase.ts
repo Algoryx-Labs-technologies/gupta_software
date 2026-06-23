@@ -11,6 +11,8 @@ export interface IPurchaseItem {
   _id?: Types.ObjectId;
   itemDescription: string;
   item?: Types.ObjectId;
+  category?: Types.ObjectId;
+  categoryNameRaw?: string;
   qty?: number;
   unit?: string;
   perRate?: number;
@@ -57,6 +59,8 @@ const purchaseItemSchema = new Schema<IPurchaseItem>(
   {
     itemDescription: { type: String, required: true, trim: true },
     item: { type: Schema.Types.ObjectId, ref: 'Item' },
+    category: { type: Schema.Types.ObjectId, ref: 'Category' },
+    categoryNameRaw: { type: String, trim: true },
     qty: { type: Number },
     unit: { type: String, trim: true },
     perRate: { type: Number },

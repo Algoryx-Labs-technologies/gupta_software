@@ -5,6 +5,7 @@ import { UserModel } from '../models/User.js';
 import { SiteModel } from '../models/Site.js';
 import { VendorModel } from '../models/Vendor.js';
 import { ItemModel } from '../models/Item.js';
+import { CategoryModel } from '../models/Category.js';
 import { PurchaseModel } from '../models/Purchase.js';
 import { TenderModel } from '../models/Tender.js';
 import { LabourExpenseModel } from '../models/LabourExpense.js';
@@ -20,6 +21,7 @@ async function seed() {
     UserModel.deleteMany({}),
     SiteModel.deleteMany({}),
     VendorModel.deleteMany({}),
+    CategoryModel.deleteMany({}),
     ItemModel.deleteMany({}),
     PurchaseModel.deleteMany({}),
     TenderModel.deleteMany({}),
@@ -61,10 +63,18 @@ async function seed() {
   ]);
 
   const vendors = await VendorModel.insertMany([
-    { name: 'AMIT CORPORATION', phone: '9876543210', gstin: '24AAAAA0000A1Z5' },
-    { name: 'MAHADEV ELECTRICALS', phone: '9876543211' },
-    { name: 'RITMANN WOOD WORKING CO.', contactPerson: 'Mr. Ritmann' },
-    { name: 'SHREE STEEL TRADERS', gstin: '24BBBBB0000B1Z5' },
+    { serialNo: 1, code: 'VEN-00001', name: 'AMIT CORPORATION', phone: '9876543210', gstin: '24AAAAA0000A1Z5' },
+    { serialNo: 2, code: 'VEN-00002', name: 'MAHADEV ELECTRICALS', phone: '9876543211' },
+    { serialNo: 3, code: 'VEN-00003', name: 'RITMANN WOOD WORKING CO.', contactPerson: 'Mr. Ritmann' },
+    { serialNo: 4, code: 'VEN-00004', name: 'SHREE STEEL TRADERS', gstin: '24BBBBB0000B1Z5' },
+  ]);
+
+  const categories = await CategoryModel.insertMany([
+    { serialNo: 1, code: 'CAT-00001', name: 'Electrical' },
+    { serialNo: 2, code: 'CAT-00002', name: 'Plumbing' },
+    { serialNo: 3, code: 'CAT-00003', name: 'Instrumentation' },
+    { serialNo: 4, code: 'CAT-00004', name: 'Mechanical' },
+    { serialNo: 5, code: 'CAT-00005', name: 'Civil' },
   ]);
 
   const items = await ItemModel.insertMany([
@@ -80,6 +90,8 @@ async function seed() {
     {
       itemDescription: 'CEILING FAN 1200MM',
       item: items[0]._id,
+      category: categories[0]._id,
+      categoryNameRaw: categories[0].name,
       qty: 10,
       unit: 'NOS',
       perRate: 2500,
@@ -91,6 +103,8 @@ async function seed() {
     },
     {
       itemDescription: 'LED BULB 9W',
+      category: categories[0]._id,
+      categoryNameRaw: categories[0].name,
       qty: 50,
       unit: 'NOS',
       perRate: 120,
@@ -106,6 +120,8 @@ async function seed() {
     {
       itemDescription: '25MM COPPER WIRE',
       item: items[1]._id,
+      category: categories[0]._id,
+      categoryNameRaw: categories[0].name,
       qty: 587.22,
       unit: 'SQFT',
       perRate: 45,
@@ -120,6 +136,8 @@ async function seed() {
   const purchase3Items = [
     {
       itemDescription: 'WOODEN DOOR FRAME',
+      category: categories[4]._id,
+      categoryNameRaw: categories[4].name,
       qty: 5,
       unit: 'NOS',
       perRate: 8500,
@@ -134,6 +152,7 @@ async function seed() {
   const tenders = await TenderModel.insertMany([
     {
       serialNo: 1,
+      code: 'TND-00001',
       tenderName: 'Water Supply Pipeline Project',
       tenderNo: 'TND-2025-WS-001',
       orderValue: 25000000,
@@ -155,6 +174,7 @@ async function seed() {
     },
     {
       serialNo: 2,
+      code: 'TND-00002',
       tenderName: 'Electrical Infrastructure Upgrade',
       tenderNo: 'TND-2025-EL-002',
       orderValue: 8500000,
@@ -173,6 +193,7 @@ async function seed() {
     },
     {
       serialNo: 3,
+      code: 'TND-00003',
       tenderName: 'Site Development Phase II',
       tenderNo: 'TND-2026-SD-003',
       orderValue: 12000000,

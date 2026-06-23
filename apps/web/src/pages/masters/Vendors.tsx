@@ -3,7 +3,7 @@ import { vendorsApi } from '@/api/masters';
 import { MasterCrudPage } from './MasterCrudPage';
 import type { Column } from '@/components/DataTable';
 
-const vendorFields = [
+const vendorFormFields = [
   { name: 'name', label: 'Vendor Name' },
   { name: 'contactPerson', label: 'Contact Person Name' },
   { name: 'phone', label: 'Mobile' },
@@ -13,7 +13,13 @@ const vendorFields = [
   { name: 'notes', label: 'Notes', type: 'textarea' as const },
 ];
 
+const vendorDetailFields = [
+  { name: 'code', label: 'Vendor Code' },
+  ...vendorFormFields,
+];
+
 const columns: Column<Vendor>[] = [
+  { key: 'code', header: 'Code', className: 'w-28' },
   { key: 'name', header: 'Vendor Name' },
   { key: 'contactPerson', header: 'Contact Person Name' },
   { key: 'phone', header: 'Mobile' },
@@ -26,8 +32,8 @@ export default function VendorsPage() {
       queryKey="vendors"
       schema={createVendorSchema}
       defaultValues={{ name: '', contactPerson: '', phone: '', email: '', gstin: '', address: '', notes: '' }}
-      fields={vendorFields}
-      detailFields={vendorFields}
+      fields={vendorFormFields}
+      detailFields={vendorDetailFields}
       columns={columns}
       listFn={vendorsApi.list}
       createFn={(data) => vendorsApi.create(data as never)}

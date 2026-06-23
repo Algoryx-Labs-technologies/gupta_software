@@ -6,6 +6,8 @@ const optionalNumber = z.coerce.number().optional().nullable();
 export const purchaseItemSchema = z.object({
   itemDescription: z.string().min(1, 'Item description is required'),
   item: objectIdSchema.optional(),
+  category: objectIdSchema.optional(),
+  categoryNameRaw: z.string().min(1, 'Category is required'),
   qty: optionalNumber,
   unit: z.string().optional(),
   perRate: optionalNumber,

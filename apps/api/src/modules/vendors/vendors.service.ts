@@ -1,11 +1,14 @@
-import { VendorModel } from '../../models/Vendor.js';
+import { VendorModel, getNextVendorSerial } from '../../models/Vendor.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { formatEntityCode } from '../../utils/entityCode.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
 import type { CreateVendorInput, UpdateVendorInput } from '@gupta/shared';
 
 export async function list(page: number, limit: number, search?: string) {
   const { skip } = getPagination(page, limit);
-  const filter = search ? { name: new RegExp(search, 'i') } : {};
+  const filter = search
+    ? { $or: [{ name: new RegExp(search, 'i') }, { code: new RegExp(search, 'i') }] }
+    : {};
 
   const [data, total] = await Promise.all([
     VendorModel.find(filter).sort({ name: 1 }).skip(skip).limit(limit).lean(),
@@ -16,7 +19,9 @@ export async function list(page: number, limit: number, search?: string) {
 }
 
 export async function create(input: CreateVendorInput) {
-  return VendorModel.create(input);
+  const serialNo = await getNextVendorSerial();
+  const code = formatEntityCode('VEN', serialNo);
+  return VendorModel.create({ ...input, serialNo, code });
 }
 
 export async function getById(id: string) {
@@ -38,8 +43,10 @@ export async function remove(id: string) {
 }
 
 export async function search(query: string, limit = 20) {
-  return VendorModel.find({ name: new RegExp(query, 'i') })
+  return VendorModel.find({
+    $or: [{ name: new RegExp(query, 'i') }, { code: new RegExp(query, 'i') }],
+  })
     .limit(limit)
-    .select('name gstin phone')
+    .select('name code gstin phone')
     .lean();
 }

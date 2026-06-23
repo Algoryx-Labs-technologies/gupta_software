@@ -10,6 +10,7 @@ import stockRoutes from '../modules/stock/stock.routes.js';
 import inventoryRoutes from '../modules/inventory/inventory.routes.js';
 import labourExpensesRoutes from '../modules/labour-expenses/labour-expenses.routes.js';
 import employeesRoutes from '../modules/employees/employees.routes.js';
+import categoriesRoutes from '../modules/categories/categories.routes.js';
 import dashboardRoutes from '../modules/dashboard/dashboard.routes.js';
 import activityRoutes from '../modules/activity/activity.routes.js';
 
@@ -26,6 +27,7 @@ router.use('/stock', stockRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/labour-expenses', labourExpensesRoutes);
 router.use('/employees', employeesRoutes);
+router.use('/categories', categoriesRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/activity', activityRoutes);
 

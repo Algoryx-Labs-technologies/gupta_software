@@ -1,13 +1,8 @@
-export interface Vendor {
+export interface Category {
   _id: string;
   serialNo: number;
   code: string;
   name: string;
-  contactPerson?: string;
-  phone?: string;
-  email?: string;
-  gstin?: string;
-  address?: string;
   notes?: string;
   createdAt: string | Date;
   updatedAt: string | Date;

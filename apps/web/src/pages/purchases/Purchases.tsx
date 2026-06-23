@@ -9,14 +9,17 @@ import {
   computePurchaseAggregateTotals,
   type Attachment,
   type CreatePurchaseInput,
+  type PaginatedResponse,
   type Purchase,
   type PurchaseItemInput,
   type Tender,
   type TenderSite,
+  type Vendor,
+  type Category,
 } from '@gupta/shared';
 import { purchasesApi } from '@/api/purchases';
 import { tendersApi } from '@/api/tenders';
-import { vendorsApi } from '@/api/masters';
+import { vendorsApi, categoriesApi } from '@/api/masters';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input, Textarea, Select } from '@/components/Input';
@@ -28,7 +31,14 @@ import { Spinner } from '@/components/Spinner';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { exportToPdf } from '@/lib/exportToPdf';
-import { toast } from 'sonner';
+import { QuickAddVendorModal } from '@/components/quick-add/QuickAddVendorModal';
+import { QuickAddTenderModal } from '@/components/quick-add/QuickAddTenderModal';
+import { QuickAddCategoryModal } from '@/components/quick-add/QuickAddCategoryModal';
+import { toast } from '@/lib/notify';
+
+const ADD_VENDOR_VALUE = '__add_vendor__';
+const ADD_TENDER_VALUE = '__add_tender__';
+const ADD_CATEGORY_VALUE = '__add_category__';
 
 type PurchaseRow = Purchase & {
   vendor?: { name: string };
@@ -72,6 +82,7 @@ function findSiteKey(
 
 const defaultItem = (): PurchaseItemInput => ({
   itemDescription: '',
+  categoryNameRaw: '',
   qty: 0,
   unit: 'NOS',
   perRate: 0,
@@ -130,7 +141,12 @@ function purchaseToFormValues(purchase: Purchase): CreatePurchaseInput {
     notes: purchase.notes,
     items: purchase.items.map((item) => ({
       itemDescription: item.itemDescription,
-      item: typeof item.item === 'string' ? item.item : undefined,
+      item: typeof item.item === 'string' ? item.item : (item.item as { _id?: string } | undefined)?._id,
+      category:
+        typeof item.category === 'string'
+          ? item.category
+          : (item.category as { _id?: string } | undefined)?._id,
+      categoryNameRaw: item.categoryNameRaw ?? '',
       qty: item.qty,
       unit: item.unit,
       perRate: item.perRate,
@@ -171,23 +187,32 @@ function getCreatedByLabel(
   return createdBy.email ? `${createdBy.name} (${createdBy.email})` : createdBy.name;
 }
 
-function getVendorLabel(vendor: string | { name: string; gstin?: string } | undefined) {
+function getVendorLabel(vendor: string | { name: string; code?: string; gstin?: string } | undefined) {
   if (!vendor) return '—';
   if (typeof vendor === 'string') return vendor;
-  return vendor.gstin ? `${vendor.name} (GSTIN: ${vendor.gstin})` : vendor.name;
+  const name = vendor.code ? `${vendor.code} — ${vendor.name}` : vendor.name;
+  return vendor.gstin ? `${name} (GSTIN: ${vendor.gstin})` : name;
 }
 
-function getTenderLabel(tender: string | { tenderNo?: string; tenderName?: string } | undefined) {
+function getTenderLabel(tender: string | { code?: string; tenderNo?: string; tenderName?: string } | undefined) {
   if (!tender) return '—';
   if (typeof tender === 'string') return tender;
-  if (tender.tenderNo && tender.tenderName) return `${tender.tenderNo} — ${tender.tenderName}`;
-  return tender.tenderNo ?? tender.tenderName ?? '—';
+  const parts = [tender.code, tender.tenderNo, tender.tenderName].filter(Boolean);
+  if (parts.length) return parts.join(' — ');
+  return '—';
 }
 
 function getSiteMasterLabel(site: string | { name: string; code?: string } | undefined) {
   if (!site) return '—';
   if (typeof site === 'string') return site;
   return `${site.name}${site.code ? ` (${site.code})` : ''}`;
+}
+
+function getCategoryLabel(category: string | { name: string; code?: string } | undefined, fallback?: string) {
+  if (category && typeof category === 'object') {
+    return category.code ? `${category.code} — ${category.name}` : category.name;
+  }
+  return fallback?.trim() || '—';
 }
 
 function getItemMasterLabel(item: string | { name: string } | undefined) {
@@ -207,6 +232,10 @@ export default function PurchasesPage() {
   const [selectedSiteKey, setSelectedSiteKey] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [existingAttachments, setExistingAttachments] = useState<Attachment[]>([]);
+  const [vendorModalOpen, setVendorModalOpen] = useState(false);
+  const [tenderModalOpen, setTenderModalOpen] = useState(false);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [categoryModalItemIndex, setCategoryModalItemIndex] = useState<number | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchases', page, search],
@@ -241,8 +270,15 @@ export default function PurchasesPage() {
     enabled: modalOpen,
   });
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories', 'purchase-form'],
+    queryFn: () => categoriesApi.list({ limit: 100 }),
+    enabled: modalOpen,
+  });
+
   const tenders = (tendersData?.data ?? []) as TenderOption[];
   const vendors = vendorsData?.data ?? [];
+  const categories = categoriesData?.data ?? [];
   const selectedTenderId = form.watch('tender');
   const selectedTender = tenders.find((t) => t._id === selectedTenderId);
 
@@ -251,8 +287,9 @@ export default function PurchasesPage() {
       { value: '', label: 'Select vendor' },
       ...vendors.map((v) => ({
         value: v._id,
-        label: v.name,
+        label: v.code ? `${v.code} — ${v.name}` : v.name,
       })),
+      { value: ADD_VENDOR_VALUE, label: '+ Add new vendor' },
     ],
     [vendors],
   );
@@ -262,11 +299,102 @@ export default function PurchasesPage() {
       { value: '', label: 'Select tender' },
       ...tenders.map((t) => ({
         value: t._id,
-        label: `${t.tenderNo} — ${t.tenderName}`,
+        label: t.code
+          ? `${t.code} — ${t.tenderNo} — ${t.tenderName}`
+          : `${t.tenderNo} — ${t.tenderName}`,
       })),
+      { value: ADD_TENDER_VALUE, label: '+ Add new tender' },
     ],
     [tenders],
   );
+
+  const handleVendorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === ADD_VENDOR_VALUE) {
+      setVendorModalOpen(true);
+      return;
+    }
+    const selected = vendors.find((v) => v._id === value);
+    form.setValue('vendor', value || undefined, { shouldValidate: true });
+    form.setValue('vendorNameRaw', selected?.name ?? '', { shouldValidate: true });
+  };
+
+  const handleTenderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === ADD_TENDER_VALUE) {
+      setTenderModalOpen(true);
+      return;
+    }
+    form.setValue('tender', value, { shouldValidate: true });
+    form.setValue('site', undefined);
+    form.setValue('siteNameRaw', '');
+    setSelectedSiteKey('');
+  };
+
+  const handleVendorCreated = (vendor: Vendor) => {
+    queryClient.setQueryData(['vendors', 'purchase-form'], (old: PaginatedResponse<Vendor> | undefined) => {
+      if (!old) return old;
+      return { ...old, data: [...old.data, vendor] };
+    });
+    queryClient.invalidateQueries({ queryKey: ['vendors'] });
+    form.setValue('vendor', vendor._id, { shouldValidate: true });
+    form.setValue('vendorNameRaw', vendor.name, { shouldValidate: true });
+    setVendorModalOpen(false);
+    toast.success('Vendor added');
+  };
+
+  const handleTenderCreated = (tender: Tender) => {
+    queryClient.setQueryData(['tenders', 'purchase-form'], (old: PaginatedResponse<TenderOption> | undefined) => {
+      if (!old) return old;
+      return { ...old, data: [...old.data, tender as TenderOption] };
+    });
+    queryClient.invalidateQueries({ queryKey: ['tenders'] });
+    form.setValue('tender', tender._id, { shouldValidate: true });
+    form.setValue('site', undefined);
+    form.setValue('siteNameRaw', '');
+    setSelectedSiteKey('');
+    setTenderModalOpen(false);
+    toast.success('Tender added');
+  };
+
+  const categoryOptions = useMemo(
+    () => [
+      { value: '', label: 'Select category' },
+      ...categories.map((c) => ({
+        value: c._id,
+        label: c.code ? `${c.code} — ${c.name}` : c.name,
+      })),
+      { value: ADD_CATEGORY_VALUE, label: '+ Add new category' },
+    ],
+    [categories],
+  );
+
+  const handleCategoryChange = (index: number, e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === ADD_CATEGORY_VALUE) {
+      setCategoryModalItemIndex(index);
+      setCategoryModalOpen(true);
+      return;
+    }
+    const selected = categories.find((c) => c._id === value);
+    form.setValue(`items.${index}.category`, value || undefined, { shouldValidate: true });
+    form.setValue(`items.${index}.categoryNameRaw`, selected?.name ?? '', { shouldValidate: true });
+  };
+
+  const handleCategoryCreated = (category: Category) => {
+    queryClient.setQueryData(['categories', 'purchase-form'], (old: PaginatedResponse<Category> | undefined) => {
+      if (!old) return old;
+      return { ...old, data: [...old.data, category] };
+    });
+    queryClient.invalidateQueries({ queryKey: ['categories'] });
+    if (categoryModalItemIndex !== null) {
+      form.setValue(`items.${categoryModalItemIndex}.category`, category._id, { shouldValidate: true });
+      form.setValue(`items.${categoryModalItemIndex}.categoryNameRaw`, category.name, { shouldValidate: true });
+    }
+    setCategoryModalOpen(false);
+    setCategoryModalItemIndex(null);
+    toast.success('Category added');
+  };
 
   const siteOptions = useMemo(() => {
     if (!selectedTender?.sites?.length) {
@@ -328,6 +456,18 @@ export default function PurchasesPage() {
     const match = vendors.find((v) => v.name === nameRaw);
     if (match) form.setValue('vendor', match._id);
   }, [modalOpen, vendors, form]);
+
+  useEffect(() => {
+    if (!modalOpen || !categories.length) return;
+    const items = form.getValues('items') ?? [];
+    items.forEach((item, index) => {
+      if (item.category) return;
+      const nameRaw = item.categoryNameRaw;
+      if (!nameRaw) return;
+      const match = categories.find((c) => c.name === nameRaw);
+      if (match) form.setValue(`items.${index}.category`, match._id);
+    });
+  }, [modalOpen, categories, form]);
 
   const createMutation = useMutation({
     mutationFn: purchasesApi.create,
@@ -647,13 +787,9 @@ export default function PurchasesPage() {
           <Select
             label="Vendor"
             options={vendorOptions}
+            value={form.watch('vendor') ?? ''}
+            onChange={handleVendorChange}
             error={form.formState.errors.vendorNameRaw?.message}
-            {...form.register('vendor', {
-              onChange: (e) => {
-                const selected = vendors.find((v) => v._id === e.target.value);
-                form.setValue('vendorNameRaw', selected?.name ?? '', { shouldValidate: true });
-              },
-            })}
           />
           <input type="hidden" {...form.register('vendorNameRaw')} />
           <Input
@@ -670,14 +806,9 @@ export default function PurchasesPage() {
           <Select
             label="Tender"
             options={tenderOptions}
+            value={form.watch('tender') ?? ''}
+            onChange={handleTenderChange}
             error={form.formState.errors.tender?.message}
-            {...form.register('tender', {
-              onChange: () => {
-                form.setValue('site', undefined);
-                form.setValue('siteNameRaw', '');
-                setSelectedSiteKey('');
-              },
-            })}
           />
           <Select
             label="Site"
@@ -726,6 +857,14 @@ export default function PurchasesPage() {
                         {...form.register(`items.${index}.itemDescription`)}
                       />
                     </div>
+                    <Select
+                      label="Category"
+                      options={categoryOptions}
+                      value={form.watch(`items.${index}.category`) ?? ''}
+                      onChange={(e) => handleCategoryChange(index, e)}
+                      error={form.formState.errors.items?.[index]?.categoryNameRaw?.message}
+                    />
+                    <input type="hidden" {...form.register(`items.${index}.categoryNameRaw`)} />
                     <Input
                       label="Quantity"
                       type="number"
@@ -847,6 +986,27 @@ export default function PurchasesPage() {
         </form>
       </Modal>
 
+      <QuickAddVendorModal
+        open={vendorModalOpen}
+        onClose={() => setVendorModalOpen(false)}
+        onCreated={handleVendorCreated}
+      />
+
+      <QuickAddTenderModal
+        open={tenderModalOpen}
+        onClose={() => setTenderModalOpen(false)}
+        onCreated={handleTenderCreated}
+      />
+
+      <QuickAddCategoryModal
+        open={categoryModalOpen}
+        onClose={() => {
+          setCategoryModalOpen(false);
+          setCategoryModalItemIndex(null);
+        }}
+        onCreated={handleCategoryCreated}
+      />
+
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
@@ -916,6 +1076,10 @@ export default function PurchasesPage() {
                           {item.isHmPurchase && <Badge variant="active">HM</Badge>}
                         </div>
                         <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          <DetailField
+                            label="Category"
+                            value={getCategoryLabel(item.category as never, item.categoryNameRaw)}
+                          />
                           <DetailField
                             label="Linked Item Master"
                             value={getItemMasterLabel(item.item as never)}

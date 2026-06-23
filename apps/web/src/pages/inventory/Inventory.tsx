@@ -20,7 +20,7 @@ import { Spinner } from '@/components/Spinner';
 import { Pagination } from '@/components/Pagination';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { formatDate } from '@/lib/formatters';
-import { toast } from 'sonner';
+import { toast } from '@/lib/notify';
 
 type Tab = 'overview' | 'receipts' | 'ledger';
 

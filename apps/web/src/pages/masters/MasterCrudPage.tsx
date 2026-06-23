@@ -9,7 +9,7 @@ import { Button } from '@/components/Button';
 import { Input, Textarea } from '@/components/Input';
 import { Modal, ConfirmDialog } from '@/components/Modal';
 import { DataTable, type Column } from '@/components/DataTable';
-import { toast } from 'sonner';
+import { toast } from '@/lib/notify';
 import type { PaginatedResponse } from '@gupta/shared';
 
 interface FieldConfig {

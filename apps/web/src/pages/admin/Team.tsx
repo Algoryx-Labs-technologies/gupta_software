@@ -12,7 +12,7 @@ import { Modal } from '@/components/Modal';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
 import { formatDate } from '@/lib/formatters';
-import { toast } from 'sonner';
+import { toast } from '@/lib/notify';
 
 const roleOptions = [Role.DATA_OPERATOR, Role.ACCOUNTANT].map((r) => ({
   value: r,

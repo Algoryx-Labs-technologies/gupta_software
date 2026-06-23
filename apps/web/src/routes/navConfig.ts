@@ -5,6 +5,7 @@ import {
   Package,
   MapPin,
   Users,
+  Tags,
   ClipboardList,
   Shield,
   HardHat,
@@ -67,6 +68,12 @@ export const navConfig: NavItem[] = [
     label: 'Vendors',
     path: '/vendors',
     icon: Users,
+    permission: Permission.MANAGE_MASTERS,
+  },
+  {
+    label: 'Categories',
+    path: '/categories',
+    icon: Tags,
     permission: Permission.MANAGE_MASTERS,
   },
   {

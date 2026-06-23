@@ -19,7 +19,7 @@ import { Input, Select } from '@/components/Input';
 import { Modal, ConfirmDialog } from '@/components/Modal';
 import { DataTable, type Column } from '@/components/DataTable';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { toast } from 'sonner';
+import { toast } from '@/lib/notify';
 
 type PopulatedTenderSite = TenderSite & {
   site?: string | { _id: string; name: string; code: string };

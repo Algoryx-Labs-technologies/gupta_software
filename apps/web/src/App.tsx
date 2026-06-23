@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
 import { AuthProvider } from '@/auth/AuthContext';
+import { NotificationProvider } from '@/components/NotificationProvider';
 import { ProtectedRoute } from '@/auth/ProtectedRoute';
 import { RoleGuard } from '@/auth/RoleGuard';
 import { Permission } from '@gupta/shared';
@@ -16,6 +16,7 @@ import EmployeeSalaryPage from '@/pages/employee-salary/EmployeeSalary';
 import InventoryPage from '@/pages/inventory/Inventory';
 import SitesPage from '@/pages/masters/Sites';
 import VendorsPage from '@/pages/masters/Vendors';
+import CategoriesPage from '@/pages/masters/Categories';
 import ItemsPage from '@/pages/masters/Items';
 import TeamPage from '@/pages/admin/Team';
 import ActivityLogsPage from '@/pages/admin/ActivityLogs';
@@ -68,6 +69,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/categories"
+                element={
+                  <RoleGuard permission={Permission.MANAGE_MASTERS}>
+                    <CategoriesPage />
+                  </RoleGuard>
+                }
+              />
+              <Route
                 path="/items"
                 element={
                   <RoleGuard permission={Permission.MANAGE_MASTERS}>
@@ -77,6 +86,7 @@ export default function App() {
               />
               <Route path="/masters/sites" element={<Navigate to="/sites" replace />} />
               <Route path="/masters/vendors" element={<Navigate to="/vendors" replace />} />
+              <Route path="/masters/categories" element={<Navigate to="/categories" replace />} />
               <Route path="/masters/items" element={<Navigate to="/items" replace />} />
               <Route path="/masters" element={<Navigate to="/sites" replace />} />
               <Route
@@ -100,7 +110,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
-        <Toaster position="top-right" richColors closeButton />
+        <NotificationProvider />
       </AuthProvider>
     </QueryClientProvider>
   );

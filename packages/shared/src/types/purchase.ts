@@ -4,6 +4,8 @@ export interface PurchaseItem {
   _id?: string;
   itemDescription: string;
   item?: string;
+  category?: string;
+  categoryNameRaw?: string;
   qty?: number;
   unit?: string;
   perRate?: number;
@@ -43,8 +45,9 @@ export interface PurchasePopulated extends Omit<Purchase, 'vendor' | 'site' | 't
   tender?: { _id: string; tenderName: string; tenderNo: string };
   site: { _id: string; name: string; code: string };
   items: Array<
-    Omit<PurchaseItem, 'item'> & {
+    Omit<PurchaseItem, 'item' | 'category'> & {
       item?: { _id: string; name: string };
+      category?: { _id: string; name: string; code: string };
     }
   >;
   createdBy: { _id: string; name: string };

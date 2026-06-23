@@ -13,7 +13,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
 import { Shield, Users } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/notify';
 import { cn } from '@/lib/cn';
 
 type LoginMode = 'team' | 'admin';

@@ -10,6 +10,7 @@ export interface TenderSite {
 export interface Tender {
   _id: string;
   serialNo: number;
+  code: string;
   tenderName: string;
   tenderNo: string;
   orderValue: number;

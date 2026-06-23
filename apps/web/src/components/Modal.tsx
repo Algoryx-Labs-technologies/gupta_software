@@ -9,9 +9,10 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   footer?: React.ReactNode;
+  nested?: boolean;
 }
 
-export function Modal({ open, onClose, title, children, size = 'md', footer }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = 'md', footer, nested }: ModalProps) {
   if (!open) return null;
 
   const sizes = {
@@ -22,7 +23,7 @@ export function Modal({ open, onClose, title, children, size = 'md', footer }: M
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={cn('fixed inset-0 flex items-center justify-center p-4', nested ? 'z-[60]' : 'z-50')}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
         className={cn(

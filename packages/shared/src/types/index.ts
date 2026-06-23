@@ -2,6 +2,7 @@ export * from './common.js';
 export * from './user.js';
 export * from './site.js';
 export * from './vendor.js';
+export * from './category.js';
 export * from './item.js';
 export * from './purchase.js';
 export * from './tender.js';

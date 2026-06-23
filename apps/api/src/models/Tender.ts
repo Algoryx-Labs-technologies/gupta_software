@@ -10,6 +10,7 @@ export interface ITenderSite {
 
 export interface ITender extends Document {
   serialNo: number;
+  code: string;
   tenderName: string;
   tenderNo: string;
   orderValue: number;
@@ -51,6 +52,7 @@ const tenderSiteSchema = new Schema<ITenderSite>(
 const tenderSchema = new Schema<ITender>(
   {
     serialNo: { type: Number, required: true, unique: true },
+    code: { type: String, required: true, trim: true, unique: true },
     tenderName: { type: String, required: true, trim: true },
     tenderNo: { type: String, required: true, trim: true },
     orderValue: { type: Number, default: 0 },
@@ -81,7 +83,7 @@ const tenderSchema = new Schema<ITender>(
 );
 
 tenderSchema.index({ status: 1 });
-tenderSchema.index({ tenderName: 'text', tenderNo: 'text', 'sites.siteNameRaw': 'text' });
+tenderSchema.index({ tenderName: 'text', tenderNo: 'text', code: 'text', 'sites.siteNameRaw': 'text' });
 tenderSchema.index({ bgExpiryDate: 1 });
 
 export const TenderModel = mongoose.model<ITender>('Tender', tenderSchema);
