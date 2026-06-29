@@ -2,9 +2,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createCategorySchema, type Category, type CreateCategoryInput } from '@gupta/shared';
 import { categoriesApi } from '@/api/masters';
-import { Button } from '@/components/Button';
 import { Input, Textarea } from '@/components/Input';
 import { Modal } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { toast } from '@/lib/notify';
 
 const defaultValues: CreateCategoryInput = {
@@ -47,23 +48,25 @@ export function QuickAddCategoryModal({ open, onClose, onCreated }: QuickAddCate
       size="md"
       nested
       footer={
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={close}>
-            Cancel
-          </Button>
-          <Button loading={form.formState.isSubmitting} onClick={form.handleSubmit(onSubmit)}>
-            Add Category
-          </Button>
-        </div>
+        <ModalFormFooter
+          onCancel={close}
+          onSubmit={form.handleSubmit(onSubmit)}
+          submitLabel="Add Category"
+          loading={form.formState.isSubmitting}
+        />
       }
     >
       <form className="space-y-4">
-        <Input
-          label="Category Name"
-          error={form.formState.errors.name?.message}
-          {...form.register('name')}
-        />
-        <Textarea label="Notes" {...form.register('notes')} />
+        <FormSection title="Category Details" tone="brand">
+          <Input
+            label="Category Name"
+            error={form.formState.errors.name?.message}
+            {...form.register('name')}
+          />
+        </FormSection>
+        <FormSection title="Notes" tone="red">
+          <Textarea label="Notes" {...form.register('notes')} />
+        </FormSection>
       </form>
     </Modal>
   );

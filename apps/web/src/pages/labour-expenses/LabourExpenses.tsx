@@ -17,6 +17,8 @@ import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { Modal, ConfirmDialog } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { DataTable, type Column } from '@/components/DataTable';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { toast } from '@/lib/notify';
@@ -268,62 +270,64 @@ export default function LabourExpensesPage() {
         title="Add Labour Expense"
         size="lg"
         footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={closeModal}>
-              Cancel
-            </Button>
-            <Button
-              loading={createMutation.isPending}
-              onClick={form.handleSubmit((d) => createMutation.mutate(d))}
-            >
-              Create
-            </Button>
-          </div>
+          <ModalFormFooter
+            onCancel={closeModal}
+            onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
+            loading={createMutation.isPending}
+          />
         }
       >
-        <form className="grid gap-4 sm:grid-cols-2">
-          <Select
-            label="Tender"
-            options={tenderOptions}
-            error={form.formState.errors.tender?.message}
-            {...form.register('tender', {
-              onChange: () => {
-                form.setValue('site', undefined);
-                form.setValue('siteNameRaw', '');
-                setSelectedSiteKey('');
-              },
-            })}
-          />
-          <Select
-            label="Site"
-            options={siteOptions}
-            value={selectedSiteKey}
-            onChange={handleSiteChange}
-            disabled={!selectedTenderId}
-            error={form.formState.errors.siteNameRaw?.message}
-          />
-          <input type="hidden" {...form.register('siteNameRaw')} />
-          <Input
-            label="Amount"
-            type="number"
-            step="any"
-            error={form.formState.errors.amount?.message}
-            {...form.register('amount', { valueAsNumber: true })}
-          />
-          <Input
-            label="Expense Date"
-            type="date"
-            error={form.formState.errors.expenseDate?.message}
-            {...form.register('expenseDate', { valueAsDate: true })}
-          />
-          <div className="sm:col-span-2">
+        <form className="space-y-4">
+          <FormSection title="Tender & Site" tone="brand">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select
+                label="Tender"
+                options={tenderOptions}
+                error={form.formState.errors.tender?.message}
+                {...form.register('tender', {
+                  onChange: () => {
+                    form.setValue('site', undefined);
+                    form.setValue('siteNameRaw', '');
+                    setSelectedSiteKey('');
+                  },
+                })}
+              />
+              <Select
+                label="Site"
+                options={siteOptions}
+                value={selectedSiteKey}
+                onChange={handleSiteChange}
+                disabled={!selectedTenderId}
+                error={form.formState.errors.siteNameRaw?.message}
+              />
+              <input type="hidden" {...form.register('siteNameRaw')} />
+            </div>
+          </FormSection>
+          <FormSection title="Expense Details" tone="green">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Amount"
+                type="number"
+                step="any"
+                error={form.formState.errors.amount?.message}
+                {...form.register('amount', { valueAsNumber: true })}
+              />
+              <Input
+                label="Expense Date"
+                type="date"
+                error={form.formState.errors.expenseDate?.message}
+                {...form.register('expenseDate', { valueAsDate: true })}
+              />
+            </div>
+          </FormSection>
+          <FormSection title="Description" tone="red">
             <Input
               label="Description"
               placeholder="Brief description"
               error={form.formState.errors.description?.message}
               {...form.register('description')}
             />
-          </div>
+          </FormSection>
         </form>
       </Modal>
 

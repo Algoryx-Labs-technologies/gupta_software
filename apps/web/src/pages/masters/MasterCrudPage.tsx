@@ -8,6 +8,8 @@ import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input, Textarea } from '@/components/Input';
 import { Modal, ConfirmDialog } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { DataTable, type Column } from '@/components/DataTable';
 import { toast } from '@/lib/notify';
 import type { PaginatedResponse } from '@gupta/shared';
@@ -170,30 +172,40 @@ export function MasterCrudPage<T extends { _id: string }>({
         onClose={closeModal}
         title={editId ? `Edit` : `Add`}
         footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={closeModal}>
-              Cancel
-            </Button>
-            <Button
-              loading={createMutation.isPending || updateMutation.isPending}
-              onClick={form.handleSubmit((d) =>
-                editId
-                  ? updateMutation.mutate({ id: editId, data: d as Record<string, unknown> })
-                  : createMutation.mutate(d as Record<string, unknown>),
-              )}
-            >
-              {editId ? 'Update' : 'Create'}
-            </Button>
-          </div>
+          <ModalFormFooter
+            onCancel={closeModal}
+            onSubmit={form.handleSubmit((d) =>
+              editId
+                ? updateMutation.mutate({ id: editId, data: d as Record<string, unknown> })
+                : createMutation.mutate(d as Record<string, unknown>),
+            )}
+            submitLabel={editId ? 'Update' : 'Create'}
+            loading={createMutation.isPending || updateMutation.isPending}
+          />
         }
       >
         <form className="space-y-4">
-          {fields.map((f) =>
-            f.type === 'textarea' ? (
-              <Textarea key={f.name} label={f.label} {...form.register(f.name)} />
-            ) : (
-              <Input key={f.name} label={f.label} {...form.register(f.name)} />
-            ),
+          {fields.some((f) => f.type !== 'textarea') && (
+            <FormSection title="Basic Information" tone="brand">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {fields
+                  .filter((f) => f.type !== 'textarea')
+                  .map((f) => (
+                    <Input key={f.name} label={f.label} {...form.register(f.name)} />
+                  ))}
+              </div>
+            </FormSection>
+          )}
+          {fields.some((f) => f.type === 'textarea') && (
+            <FormSection title="Additional Notes" tone="red">
+              <div className="space-y-4">
+                {fields
+                  .filter((f) => f.type === 'textarea')
+                  .map((f) => (
+                    <Textarea key={f.name} label={f.label} {...form.register(f.name)} />
+                  ))}
+              </div>
+            </FormSection>
           )}
         </form>
       </Modal>

@@ -25,6 +25,8 @@ import { Button } from '@/components/Button';
 import { Input, Textarea, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
 import { Spinner } from '@/components/Spinner';
@@ -770,59 +772,63 @@ export default function PurchasesPage() {
         title={editId ? 'Edit Purchase' : 'Add Purchase'}
         size="xl"
         footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={closeModal}>
-              Cancel
-            </Button>
-            <Button
-              loading={createMutation.isPending || updateMutation.isPending}
-              onClick={form.handleSubmit(onSubmit)}
-            >
-              {editId ? 'Update' : 'Create'}
-            </Button>
-          </div>
+          <ModalFormFooter
+            onCancel={closeModal}
+            onSubmit={form.handleSubmit(onSubmit)}
+            submitLabel={editId ? 'Update' : 'Create'}
+            loading={createMutation.isPending || updateMutation.isPending}
+          />
         }
       >
-        <form className="grid gap-4 sm:grid-cols-2">
-          <Select
-            label="Vendor"
-            options={vendorOptions}
-            value={form.watch('vendor') ?? ''}
-            onChange={handleVendorChange}
-            error={form.formState.errors.vendorNameRaw?.message}
-          />
-          <input type="hidden" {...form.register('vendorNameRaw')} />
-          <Input
-            label="Bill No"
-            error={form.formState.errors.billNo?.message}
-            {...form.register('billNo')}
-          />
-          <Input
-            label="Bill Name"
-            error={form.formState.errors.billName?.message}
-            {...form.register('billName')}
-          />
-          <Input label="Bill Date" type="date" {...form.register('billDate', { valueAsDate: true })} />
-          <Select
-            label="Tender"
-            options={tenderOptions}
-            value={form.watch('tender') ?? ''}
-            onChange={handleTenderChange}
-            error={form.formState.errors.tender?.message}
-          />
-          <Select
-            label="Site"
-            options={siteOptions}
-            value={selectedSiteKey}
-            onChange={handleSiteChange}
-            disabled={!selectedTenderId}
-            error={form.formState.errors.siteNameRaw?.message}
-          />
-          <input type="hidden" {...form.register('siteNameRaw')} />
+        <form className="space-y-4">
+          <FormSection title="Bill & Vendor Details" tone="brand">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select
+                label="Vendor"
+                options={vendorOptions}
+                value={form.watch('vendor') ?? ''}
+                onChange={handleVendorChange}
+                error={form.formState.errors.vendorNameRaw?.message}
+              />
+              <input type="hidden" {...form.register('vendorNameRaw')} />
+              <Input
+                label="Bill No"
+                error={form.formState.errors.billNo?.message}
+                {...form.register('billNo')}
+              />
+              <Input
+                label="Bill Name"
+                error={form.formState.errors.billName?.message}
+                {...form.register('billName')}
+              />
+              <Input label="Bill Date" type="date" {...form.register('billDate', { valueAsDate: true })} />
+            </div>
+          </FormSection>
 
-          <div className="sm:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700">Items</h3>
+          <FormSection title="Tender & Site" tone="green">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select
+                label="Tender"
+                options={tenderOptions}
+                value={form.watch('tender') ?? ''}
+                onChange={handleTenderChange}
+                error={form.formState.errors.tender?.message}
+              />
+              <Select
+                label="Site"
+                options={siteOptions}
+                value={selectedSiteKey}
+                onChange={handleSiteChange}
+                disabled={!selectedTenderId}
+                error={form.formState.errors.siteNameRaw?.message}
+              />
+              <input type="hidden" {...form.register('siteNameRaw')} />
+            </div>
+          </FormSection>
+
+          <FormSection title="Items" tone="green">
+            <div className="space-y-4">
+            <div className="flex items-center justify-end">
               <Button type="button" variant="secondary" onClick={() => append(defaultItem())}>
                 <Plus className="h-4 w-4" /> Add Item
               </Button>
@@ -835,7 +841,7 @@ export default function PurchasesPage() {
             {fields.map((field, index) => {
               const lineTotal = itemTotals[index] ?? computePurchaseTotals({});
               return (
-                <div key={field.id} className="rounded-xl border border-gray-200 p-4">
+                <div key={field.id} className="rounded-xl border border-green-200 bg-white/80 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-600">Item {index + 1}</span>
                     {fields.length > 1 && (
@@ -906,9 +912,11 @@ export default function PurchasesPage() {
                 </div>
               );
             })}
-          </div>
+            </div>
+          </FormSection>
 
-          <div className="sm:col-span-2 rounded-xl bg-brand-50 p-4 text-sm">
+          <FormSection title="Totals" tone="red">
+            <div className="text-sm">
             <div className="flex justify-between">
               <span>Sub Total</span>
               <span>{formatCurrency(totals.subTotal)}</span>
@@ -921,12 +929,14 @@ export default function PurchasesPage() {
               <span>Grand Total</span>
               <span>{formatCurrency(totals.grandTotal)}</span>
             </div>
-          </div>
-          <div className="sm:col-span-2">
-            <Textarea label="Notes" {...form.register('notes')} />
-          </div>
+            </div>
+          </FormSection>
 
-          <div className="sm:col-span-2">
+          <FormSection title="Notes & Receipt" tone="brand">
+            <div className="space-y-4">
+          <Textarea label="Notes" {...form.register('notes')} />
+
+          <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
               Receipt (PDF)
             </label>
@@ -983,6 +993,8 @@ export default function PurchasesPage() {
               </button>
             )}
           </div>
+            </div>
+          </FormSection>
         </form>
       </Modal>
 

@@ -2,9 +2,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createVendorSchema, type CreateVendorInput, type Vendor } from '@gupta/shared';
 import { vendorsApi } from '@/api/masters';
-import { Button } from '@/components/Button';
 import { Input, Textarea } from '@/components/Input';
 import { Modal } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { toast } from '@/lib/notify';
 
 const defaultValues: CreateVendorInput = {
@@ -52,32 +53,36 @@ export function QuickAddVendorModal({ open, onClose, onCreated }: QuickAddVendor
       size="lg"
       nested
       footer={
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={close}>
-            Cancel
-          </Button>
-          <Button loading={form.formState.isSubmitting} onClick={form.handleSubmit(onSubmit)}>
-            Add Vendor
-          </Button>
-        </div>
+        <ModalFormFooter
+          onCancel={close}
+          onSubmit={form.handleSubmit(onSubmit)}
+          submitLabel="Add Vendor"
+          loading={form.formState.isSubmitting}
+        />
       }
     >
-      <form className="grid gap-4 sm:grid-cols-2">
-        <Input
-          label="Vendor Name"
-          error={form.formState.errors.name?.message}
-          {...form.register('name')}
-        />
-        <Input label="Contact Person Name" {...form.register('contactPerson')} />
-        <Input label="Mobile" {...form.register('phone')} />
-        <Input label="Email" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
-        <Input label="GSTIN" {...form.register('gstin')} />
-        <div className="sm:col-span-2">
-          <Textarea label="Address" {...form.register('address')} />
-        </div>
-        <div className="sm:col-span-2">
+      <form className="space-y-4">
+        <FormSection title="Vendor Details" tone="brand">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Vendor Name"
+              error={form.formState.errors.name?.message}
+              {...form.register('name')}
+            />
+            <Input label="Contact Person Name" {...form.register('contactPerson')} />
+            <Input label="Mobile" {...form.register('phone')} />
+            <Input label="Email" type="email" error={form.formState.errors.email?.message} {...form.register('email')} />
+          </div>
+        </FormSection>
+        <FormSection title="Tax & Address" tone="green">
+          <div className="space-y-4">
+            <Input label="GSTIN" {...form.register('gstin')} />
+            <Textarea label="Address" {...form.register('address')} />
+          </div>
+        </FormSection>
+        <FormSection title="Notes" tone="red">
           <Textarea label="Notes" {...form.register('notes')} />
-        </div>
+        </FormSection>
       </form>
     </Modal>
   );

@@ -10,6 +10,7 @@ import { InventoryLedgerModel, type IInventoryLedger } from '../../models/Invent
 import { PurchaseModel, type IPurchase } from '../../models/Purchase.js';
 import { SiteModel } from '../../models/Site.js';
 import { ItemModel } from '../../models/Item.js';
+import { CategoryModel } from '../../models/Category.js';
 import { resolveCreatedByRef } from '../../config/admin.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { getPagination, buildPaginationMeta } from '../../utils/pagination.js';
@@ -65,6 +66,75 @@ function buildItemBalanceFilter(itemId?: string, itemDescription?: string): Filt
   };
 }
 
+type CategorySnapshot = {
+  category?: Types.ObjectId | string;
+  categoryNameRaw?: string;
+};
+
+function categoryFields(snapshot?: CategorySnapshot | null) {
+  if (!snapshot?.categoryNameRaw?.trim()) return {};
+  return {
+    category: snapshot.category,
+    categoryNameRaw: snapshot.categoryNameRaw.trim(),
+  };
+}
+
+async function resolveItemCategory(
+  siteId: string,
+  itemId?: string,
+  itemDescription?: string,
+): Promise<CategorySnapshot | null> {
+  const entry = await InventoryLedgerModel.findOne({
+    site: siteId,
+    ...buildItemBalanceFilter(itemId, itemDescription),
+    categoryNameRaw: { $exists: true, $nin: [null, ''] },
+  })
+    .sort({ createdAt: -1 })
+    .select('category categoryNameRaw')
+    .lean();
+
+  if (entry?.categoryNameRaw) {
+    return { category: entry.category, categoryNameRaw: entry.categoryNameRaw };
+  }
+
+  const purchaseEntry = await InventoryLedgerModel.findOne({
+    ...buildItemBalanceFilter(itemId, itemDescription),
+    movementType: InventoryMovementType.PURCHASE_IN,
+    categoryNameRaw: { $exists: true, $nin: [null, ''] },
+  })
+    .sort({ createdAt: -1 })
+    .select('category categoryNameRaw')
+    .lean();
+
+  if (!purchaseEntry?.categoryNameRaw) return null;
+  return { category: purchaseEntry.category, categoryNameRaw: purchaseEntry.categoryNameRaw };
+}
+
+async function backfillLedgerCategories() {
+  const entries = await InventoryLedgerModel.find({
+    movementType: InventoryMovementType.PURCHASE_IN,
+    purchaseId: { $exists: true },
+    $or: [{ categoryNameRaw: { $exists: false } }, { categoryNameRaw: null }, { categoryNameRaw: '' }],
+  })
+    .select('purchaseId purchaseItemId')
+    .lean();
+
+  if (!entries.length) return;
+
+  for (const entry of entries) {
+    const purchase = await PurchaseModel.findById(entry.purchaseId).lean();
+    if (!purchase) continue;
+
+    const line = purchase.items.find((item) => item._id?.toString() === entry.purchaseItemId);
+    if (!line?.categoryNameRaw?.trim()) continue;
+
+    await InventoryLedgerModel.updateOne(
+      { _id: entry._id },
+      { category: line.category, categoryNameRaw: line.categoryNameRaw },
+    );
+  }
+}
+
 export async function getBalanceAtSite(siteId: string, itemId?: string, itemDescription?: string) {
   const entries = await InventoryLedgerModel.find({
     site: siteId,
@@ -110,6 +180,10 @@ export async function syncPurchaseLedger(purchase: IPurchase, userId?: string) {
       direction: InventoryDirection.IN,
       item: line.item,
       itemDescription: line.itemDescription,
+      ...categoryFields({
+        category: line.category,
+        categoryNameRaw: line.categoryNameRaw,
+      }),
       unit: line.unit,
       site: siteId,
       quantity: line.qty ?? 0,
@@ -148,8 +222,9 @@ export async function backfillPurchaseLedger(userId?: string) {
 
 export async function getOverview() {
   await backfillPurchaseLedger();
+  await backfillLedgerCategories();
 
-  const [sites, itemDocs, balanceRows] = await Promise.all([
+  const [sites, itemDocs, balanceRows, categoryDocs] = await Promise.all([
     SiteModel.find().sort({ name: 1 }).select('name code').lean(),
     ItemModel.find().select('name defaultUnit').lean(),
     InventoryLedgerModel.aggregate<{
@@ -172,7 +247,15 @@ export async function getOverview() {
       },
       { $match: { quantity: { $ne: 0 } } },
     ]),
+    CategoryModel.find().select('name code').lean(),
   ]);
+
+  const categoryCodeMap = new Map(
+    (categoryDocs as Array<{ _id: Types.ObjectId; name: string; code: string }>).map((category) => [
+      category._id.toString(),
+      category.code,
+    ]),
+  );
 
   const itemNameMap = new Map(itemDocs.map((item) => [item._id.toString(), item.name]));
   const itemUnitMap = new Map(itemDocs.map((item) => [item._id.toString(), item.defaultUnit]));
@@ -210,14 +293,46 @@ export async function getOverview() {
     movementType: InventoryMovementType.PURCHASE_IN,
   })
     .sort({ createdAt: -1 })
-    .select('item itemDescription site billNo')
+    .select('item itemDescription site billNo category categoryNameRaw')
     .lean();
 
-  const purchaseRefMap = new Map<string, { billNo?: string }>();
+  const purchaseRefMap = new Map<
+    string,
+    { billNo?: string; categoryId?: string; categoryNameRaw?: string; categoryCode?: string }
+  >();
   for (const ref of purchaseRefs) {
     const refKey = `${buildItemKey(ref.item?.toString(), ref.itemDescription)}:${ref.site.toString()}`;
     if (!purchaseRefMap.has(refKey)) {
-      purchaseRefMap.set(refKey, { billNo: ref.billNo });
+      const categoryId = ref.category?.toString();
+      purchaseRefMap.set(refKey, {
+        billNo: ref.billNo,
+        categoryId,
+        categoryNameRaw: ref.categoryNameRaw,
+        categoryCode: categoryId ? categoryCodeMap.get(categoryId) : undefined,
+      });
+    }
+  }
+
+  const categoryLedgerRefs = await InventoryLedgerModel.find({
+    categoryNameRaw: { $exists: true, $nin: [null, ''] },
+  })
+    .sort({ createdAt: -1 })
+    .select('item itemDescription site category categoryNameRaw')
+    .lean();
+
+  const categoryRefMap = new Map<
+    string,
+    { categoryId?: string; categoryNameRaw?: string; categoryCode?: string }
+  >();
+  for (const ref of categoryLedgerRefs) {
+    const refKey = `${buildItemKey(ref.item?.toString(), ref.itemDescription)}:${ref.site.toString()}`;
+    if (!categoryRefMap.has(refKey)) {
+      const categoryId = ref.category?.toString();
+      categoryRefMap.set(refKey, {
+        categoryId,
+        categoryNameRaw: ref.categoryNameRaw,
+        categoryCode: categoryId ? categoryCodeMap.get(categoryId) : undefined,
+      });
     }
   }
 
@@ -227,13 +342,18 @@ export async function getOverview() {
     .map((cell) => {
       const item = items.find((entry) => entry.key === cell.itemKey);
       const site = siteMap.get(cell.siteId);
-      const ref = purchaseRefMap.get(`${cell.itemKey}:${cell.siteId}`);
+      const refKey = `${cell.itemKey}:${cell.siteId}`;
+      const ref = purchaseRefMap.get(refKey);
+      const categoryRef = categoryRefMap.get(refKey);
       return {
         itemKey: cell.itemKey,
         itemId: item?.itemId,
         itemName: item?.name ?? '',
         itemDescription: item?.itemDescription ?? item?.name ?? '',
         unit: item?.unit,
+        categoryId: categoryRef?.categoryId ?? ref?.categoryId,
+        categoryNameRaw: categoryRef?.categoryNameRaw ?? ref?.categoryNameRaw,
+        categoryCode: categoryRef?.categoryCode ?? ref?.categoryCode,
         siteId: cell.siteId,
         siteCode: site?.code ?? '',
         siteName: site?.name ?? '',
@@ -248,6 +368,10 @@ export async function getOverview() {
 
 export async function getReceipts() {
   await backfillPurchaseLedger();
+  await backfillLedgerCategories();
+
+  const categoryDocs = await CategoryModel.find().select('name code').lean();
+  const categoryCodeMap = new Map(categoryDocs.map((category) => [category._id.toString(), category.code]));
 
   const purchases = await PurchaseModel.find({
     siteNameRaw: { $exists: true, $ne: '' },
@@ -285,6 +409,9 @@ export async function getReceipts() {
         itemKey: buildItemKey(itemId, line.itemDescription),
         itemDescription: line.itemDescription,
         unit: line.unit,
+        categoryId: line.category?.toString(),
+        categoryNameRaw: line.categoryNameRaw,
+        categoryCode: line.category ? categoryCodeMap.get(line.category.toString()) : undefined,
         receivedQty,
         balanceQty: Math.max(0, Math.round(balanceQty * 100) / 100),
       });
@@ -314,10 +441,17 @@ export async function allocateStock(input: AllocateStockInput, userId?: string) 
     input.quantity,
   );
 
+  const categorySnapshot = await resolveItemCategory(
+    input.fromSiteId,
+    input.itemId,
+    input.itemDescription,
+  );
+
   const base = {
     movementType: InventoryMovementType.ALLOCATION,
     item: input.itemId,
     itemDescription: input.itemDescription,
+    ...categoryFields(categorySnapshot),
     unit: input.unit,
     quantity: input.quantity,
     notes: input.notes,
@@ -335,11 +469,18 @@ export async function allocateStock(input: AllocateStockInput, userId?: string) 
 export async function consumeStock(input: ConsumeStockInput, userId?: string) {
   await assertSufficientStock(input.siteId, input.itemId, input.itemDescription, input.quantity);
 
+  const categorySnapshot = await resolveItemCategory(
+    input.siteId,
+    input.itemId,
+    input.itemDescription,
+  );
+
   await InventoryLedgerModel.create({
     movementType: InventoryMovementType.CONSUMPTION,
     direction: InventoryDirection.OUT,
     item: input.itemId,
     itemDescription: input.itemDescription,
+    ...categoryFields(categorySnapshot),
     unit: input.unit,
     site: input.siteId,
     quantity: input.quantity,
@@ -351,19 +492,32 @@ export async function consumeStock(input: ConsumeStockInput, userId?: string) {
 }
 
 export async function listLedger(filters: InventoryLedgerFilterInput) {
-  const { page, limit, site, itemId, movementType } = filters;
+  await backfillLedgerCategories();
+
+  const { page, limit, site, itemId, category, movementType, search } = filters;
   const { skip } = getPagination(page, limit);
   const query: FilterQuery<IInventoryLedger> = {};
 
   if (site) query.site = site;
   if (itemId) query.item = itemId;
+  if (category) query.category = category;
   if (movementType) query.movementType = movementType;
+  if (search?.trim()) {
+    const pattern = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    query.$or = [
+      { itemDescription: pattern },
+      { categoryNameRaw: pattern },
+      { billNo: pattern },
+      { notes: pattern },
+    ];
+  }
 
   const [data, total] = await Promise.all([
     InventoryLedgerModel.find(query)
       .populate('site', 'name code')
       .populate('fromSite', 'name code')
       .populate('toSite', 'name code')
+      .populate('category', 'name code')
       .populate('createdBy', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -376,6 +530,7 @@ export async function listLedger(filters: InventoryLedgerFilterInput) {
     const siteDoc = entry.site as unknown as { _id: Types.ObjectId; name: string; code: string } | undefined;
     const fromSiteDoc = entry.fromSite as unknown as { name: string } | undefined;
     const toSiteDoc = entry.toSite as unknown as { name: string } | undefined;
+    const categoryDoc = entry.category as unknown as { _id: Types.ObjectId; name: string; code: string } | undefined;
     const createdByDoc = entry.createdBy as unknown as { name: string } | undefined;
 
     return {
@@ -385,6 +540,9 @@ export async function listLedger(filters: InventoryLedgerFilterInput) {
       item: entry.item?.toString(),
       itemDescription: entry.itemDescription,
       unit: entry.unit,
+      categoryId: categoryDoc?._id?.toString() ?? entry.category?.toString(),
+      categoryNameRaw: entry.categoryNameRaw ?? categoryDoc?.name,
+      categoryCode: categoryDoc?.code,
       site: siteDoc?._id?.toString() ?? entry.site.toString(),
       siteName: siteDoc?.name,
       siteCode: siteDoc?.code,

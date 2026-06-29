@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InventoryMovementType } from '../enums.js';
 import { objectIdSchema } from './common.js';
 
 const inventoryItemRefSchema = z.object({
@@ -40,7 +41,9 @@ export const inventoryLedgerFilterSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   site: objectIdSchema.optional(),
   itemId: objectIdSchema.optional(),
-  movementType: z.string().optional(),
+  category: objectIdSchema.optional(),
+  movementType: z.nativeEnum(InventoryMovementType).optional(),
+  search: z.string().optional(),
 });
 
 export type InventoryLedgerFilterInput = z.infer<typeof inventoryLedgerFilterSchema>;

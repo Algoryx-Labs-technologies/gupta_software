@@ -6,6 +6,8 @@ export interface IInventoryLedger extends Document {
   direction: InventoryDirection;
   item?: Types.ObjectId;
   itemDescription: string;
+  category?: Types.ObjectId;
+  categoryNameRaw?: string;
   unit?: string;
   site: Types.ObjectId;
   quantity: number;
@@ -35,6 +37,8 @@ const inventoryLedgerSchema = new Schema<IInventoryLedger>(
     },
     item: { type: Schema.Types.ObjectId, ref: 'Item' },
     itemDescription: { type: String, required: true, trim: true },
+    category: { type: Schema.Types.ObjectId, ref: 'Category' },
+    categoryNameRaw: { type: String, trim: true },
     unit: { type: String, trim: true },
     site: { type: Schema.Types.ObjectId, ref: 'Site', required: true },
     quantity: { type: Number, required: true, min: 0 },

@@ -6,6 +6,9 @@ export interface InventoryMatrixItem {
   name: string;
   itemDescription: string;
   unit?: string;
+  categoryId?: string;
+  categoryNameRaw?: string;
+  categoryCode?: string;
 }
 
 export interface InventoryStockLine {
@@ -14,6 +17,9 @@ export interface InventoryStockLine {
   itemName: string;
   itemDescription: string;
   unit?: string;
+  categoryId?: string;
+  categoryNameRaw?: string;
+  categoryCode?: string;
   siteId: string;
   siteCode: string;
   siteName: string;
@@ -55,6 +61,9 @@ export interface InventoryReceipt {
   itemKey: string;
   itemDescription: string;
   unit?: string;
+  categoryId?: string;
+  categoryNameRaw?: string;
+  categoryCode?: string;
   receivedQty: number;
   balanceQty: number;
 }
@@ -66,6 +75,9 @@ export interface InventoryLedgerEntry {
   item?: string;
   itemDescription: string;
   unit?: string;
+  categoryId?: string;
+  categoryNameRaw?: string;
+  categoryCode?: string;
   site: string;
   siteName?: string;
   siteCode?: string;

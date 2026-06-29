@@ -24,6 +24,8 @@ import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { Modal, ConfirmDialog } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
@@ -536,46 +538,47 @@ export default function EmployeeSalaryPage() {
         title={editEmployee ? 'Edit Employee' : 'Add Employee'}
         size="lg"
         footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={closeModal}>
-              Cancel
-            </Button>
-            <Button
-              loading={createMutation.isPending || updateMutation.isPending}
-              onClick={form.handleSubmit((d) =>
-                editEmployee
-                  ? updateMutation.mutate({ id: editEmployee._id, data: d })
-                  : createMutation.mutate(d),
-              )}
-            >
-              {editEmployee ? 'Update' : 'Create'}
-            </Button>
-          </div>
+          <ModalFormFooter
+            onCancel={closeModal}
+            onSubmit={form.handleSubmit((d) =>
+              editEmployee
+                ? updateMutation.mutate({ id: editEmployee._id, data: d })
+                : createMutation.mutate(d),
+            )}
+            submitLabel={editEmployee ? 'Update' : 'Create'}
+            loading={createMutation.isPending || updateMutation.isPending}
+          />
         }
       >
-        <form className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Name"
-            error={form.formState.errors.name?.message}
-            {...form.register('name')}
-          />
-          <Input
-            label="Phone"
-            error={form.formState.errors.phone?.message}
-            {...form.register('phone')}
-          />
-          <Input
-            label="Employee ID"
-            error={form.formState.errors.employeeId?.message}
-            {...form.register('employeeId')}
-          />
-          <Input
-            label="Monthly Salary"
-            type="number"
-            step="any"
-            error={form.formState.errors.salary?.message}
-            {...form.register('salary', { valueAsNumber: true })}
-          />
+        <form className="space-y-4">
+          <FormSection title="Employee Details" tone="brand">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Name"
+                error={form.formState.errors.name?.message}
+                {...form.register('name')}
+              />
+              <Input
+                label="Phone"
+                error={form.formState.errors.phone?.message}
+                {...form.register('phone')}
+              />
+              <Input
+                label="Employee ID"
+                error={form.formState.errors.employeeId?.message}
+                {...form.register('employeeId')}
+              />
+            </div>
+          </FormSection>
+          <FormSection title="Salary" tone="green">
+            <Input
+              label="Monthly Salary"
+              type="number"
+              step="any"
+              error={form.formState.errors.salary?.message}
+              {...form.register('salary', { valueAsNumber: true })}
+            />
+          </FormSection>
         </form>
       </Modal>
 

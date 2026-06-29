@@ -9,7 +9,7 @@ import type {
   InventoryStockLine,
 } from '@gupta/shared';
 import { inventoryApi } from '@/api/inventory';
-import { sitesApi } from '@/api/masters';
+import { sitesApi, categoriesApi } from '@/api/masters';
 import { tendersApi } from '@/api/tenders';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
@@ -21,8 +21,82 @@ import { Pagination } from '@/components/Pagination';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { formatDate } from '@/lib/formatters';
 import { toast } from '@/lib/notify';
+import { InventoryMovementType } from '@gupta/shared';
 
 type Tab = 'overview' | 'receipts' | 'ledger';
+
+type InventoryFilterState = {
+  search: string;
+  siteId: string;
+  categoryId: string;
+  movementType: string;
+};
+
+const defaultFilters = (): InventoryFilterState => ({
+  search: '',
+  siteId: '',
+  categoryId: '',
+  movementType: '',
+});
+
+const movementTypeOptions = [
+  { value: '', label: 'All transactions' },
+  { value: InventoryMovementType.PURCHASE_IN, label: 'Stock In' },
+  { value: InventoryMovementType.ALLOCATION, label: 'Transfer' },
+  { value: InventoryMovementType.CONSUMPTION, label: 'Stock Out' },
+  { value: InventoryMovementType.ADJUSTMENT, label: 'Adjustment' },
+];
+
+function matchesSearch(values: Array<string | undefined>, search: string) {
+  const q = search.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = values.filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q);
+}
+
+function filterStockLine(line: InventoryStockLine, filters: InventoryFilterState) {
+  if (filters.siteId && line.siteId !== filters.siteId) return false;
+  if (filters.categoryId && line.categoryId !== filters.categoryId) return false;
+  return matchesSearch(
+    [
+      line.itemName,
+      line.itemDescription,
+      line.categoryNameRaw,
+      line.categoryCode,
+      line.billNo,
+      line.siteCode,
+      line.siteName,
+    ],
+    filters.search,
+  );
+}
+
+function filterReceipt(receipt: InventoryReceipt, filters: InventoryFilterState) {
+  if (filters.siteId && receipt.siteId !== filters.siteId) return false;
+  if (filters.categoryId && receipt.categoryId !== filters.categoryId) return false;
+  return matchesSearch(
+    [
+      receipt.itemDescription,
+      receipt.categoryNameRaw,
+      receipt.categoryCode,
+      receipt.billNo,
+      receipt.billName,
+      receipt.siteCode,
+      receipt.siteName,
+      String(receipt.purchaseSerialNo),
+    ],
+    filters.search,
+  );
+}
+
+function hasActiveFilters(filters: InventoryFilterState, includeMovementType: boolean) {
+  return Boolean(
+    filters.search.trim() ||
+      filters.siteId ||
+      filters.categoryId ||
+      (includeMovementType && filters.movementType),
+  );
+}
 
 type LedgerDisplayRow = {
   id: string;
@@ -30,6 +104,8 @@ type LedgerDisplayRow = {
   label: string;
   badgeVariant: string;
   itemDescription: string;
+  categoryNameRaw?: string;
+  categoryCode?: string;
   unit?: string;
   quantity: number;
   detail: React.ReactNode;
@@ -37,6 +113,35 @@ type LedgerDisplayRow = {
   qtyClass: string;
   reference?: string;
 };
+
+function CategoryTag({
+  name,
+  code,
+}: {
+  name?: string;
+  code?: string;
+}) {
+  if (!name?.trim()) {
+    return (
+      <Badge variant="default" className="normal-case text-muted">
+        Uncategorized
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="admin" className="normal-case">
+      {code ? `${code} · ${name}` : name}
+    </Badge>
+  );
+}
+
+function ledgerCategoryFields(entry: InventoryLedgerEntry) {
+  return {
+    categoryNameRaw: entry.categoryNameRaw,
+    categoryCode: entry.categoryCode,
+  };
+}
 
 function isAllocationPair(a: InventoryLedgerEntry, b: InventoryLedgerEntry) {
   return (
@@ -73,6 +178,7 @@ function buildLedgerRows(entries: InventoryLedgerEntry[]): LedgerDisplayRow[] {
           label: 'Transfer',
           badgeVariant: 'active',
           itemDescription: entry.itemDescription,
+          ...ledgerCategoryFields(entry),
           unit: entry.unit,
           quantity: entry.quantity,
           detail: (
@@ -106,6 +212,7 @@ function buildLedgerRows(entries: InventoryLedgerEntry[]): LedgerDisplayRow[] {
         label: 'Stock In',
         badgeVariant: 'completed',
         itemDescription: entry.itemDescription,
+        ...ledgerCategoryFields(entry),
         unit: entry.unit,
         quantity: entry.quantity,
         detail: (
@@ -127,6 +234,7 @@ function buildLedgerRows(entries: InventoryLedgerEntry[]): LedgerDisplayRow[] {
         label: 'Stock Out',
         badgeVariant: 'expired',
         itemDescription: entry.itemDescription,
+        ...ledgerCategoryFields(entry),
         unit: entry.unit,
         quantity: entry.quantity,
         detail: (
@@ -148,6 +256,7 @@ function buildLedgerRows(entries: InventoryLedgerEntry[]): LedgerDisplayRow[] {
       label: isEntry ? 'Entry' : 'Exit',
       badgeVariant: isEntry ? 'completed' : 'expired',
       itemDescription: entry.itemDescription,
+      ...ledgerCategoryFields(entry),
       unit: entry.unit,
       quantity: entry.quantity,
       detail: (
@@ -169,6 +278,7 @@ export default function InventoryPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('overview');
   const [ledgerPage, setLedgerPage] = useState(1);
+  const [filters, setFilters] = useState<InventoryFilterState>(defaultFilters);
   const [allocateOpen, setAllocateOpen] = useState(false);
   const [consumeOpen, setConsumeOpen] = useState(false);
   const [allocateForm, setAllocateForm] = useState<AllocateStockInput>({
@@ -197,6 +307,11 @@ export default function InventoryPage() {
 
   const stockLines = overview?.stockLines ?? [];
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories', 'inventory-filters'],
+    queryFn: () => categoriesApi.list({ limit: 100 }),
+  });
+
   const { data: receipts, isLoading: receiptsLoading } = useQuery({
     queryKey: ['inventory', 'receipts'],
     queryFn: inventoryApi.receipts,
@@ -216,10 +331,65 @@ export default function InventoryPage() {
   });
 
   const { data: ledger, isLoading: ledgerLoading } = useQuery({
-    queryKey: ['inventory', 'ledger', ledgerPage],
-    queryFn: () => inventoryApi.ledger({ page: ledgerPage, limit: 20 }),
+    queryKey: [
+      'inventory',
+      'ledger',
+      ledgerPage,
+      filters.siteId,
+      filters.categoryId,
+      filters.movementType,
+      filters.search,
+    ],
+    queryFn: () =>
+      inventoryApi.ledger({
+        page: ledgerPage,
+        limit: 20,
+        site: filters.siteId || undefined,
+        category: filters.categoryId || undefined,
+        movementType: filters.movementType || undefined,
+        search: filters.search.trim() || undefined,
+      }),
     enabled: tab === 'ledger',
   });
+
+  const siteOptions = useMemo(() => {
+    const sites = overview?.sites ?? [];
+    return [
+      { value: '', label: 'All sites' },
+      ...sites.map((site) => ({ value: site._id, label: `${site.code} — ${site.name}` })),
+    ];
+  }, [overview?.sites]);
+
+  const categoryOptions = useMemo(() => {
+    const categories = categoriesData?.data ?? [];
+    return [
+      { value: '', label: 'All categories' },
+      ...categories.map((category) => ({
+        value: category._id,
+        label: category.code ? `${category.code} — ${category.name}` : category.name,
+      })),
+    ];
+  }, [categoriesData]);
+
+  const filteredStockLines = useMemo(
+    () => stockLines.filter((line) => filterStockLine(line, filters)),
+    [stockLines, filters],
+  );
+
+  const filteredReceipts = useMemo(
+    () => (receipts ?? []).filter((receipt) => filterReceipt(receipt, filters)),
+    [receipts, filters],
+  );
+
+  const updateFilters = (patch: Partial<InventoryFilterState>) => {
+    setFilters((current) => ({ ...current, ...patch }));
+    setLedgerPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilters(defaultFilters());
+    setLedgerPage(1);
+  };
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['inventory'] });
@@ -489,14 +659,17 @@ export default function InventoryPage() {
           <Button variant="secondary" onClick={openConsumeEmpty}>
             <MinusCircle className="h-4 w-4" /> Issue Stock
           </Button>
-          {stockLines.length > 0 && (
+          {filteredStockLines.length > 0 && (
             <Button
               variant="secondary"
               onClick={() =>
                 exportToExcel(
-                  stockLines.map((line) => ({
+                  filteredStockLines.map((line) => ({
                     Item: line.itemName,
                     Description: line.itemDescription,
+                    Category: line.categoryCode
+                      ? `${line.categoryCode} · ${line.categoryNameRaw ?? ''}`
+                      : (line.categoryNameRaw ?? ''),
                     Unit: line.unit ?? '',
                     Site: `${line.siteCode} — ${line.siteName}`,
                     Quantity: line.quantity,
@@ -512,12 +685,12 @@ export default function InventoryPage() {
         </div>
       }
     >
-      <div className="mb-4 flex gap-2 border-b border-border">
+      <div className="mb-3 flex gap-1 border-b border-border">
         {tabs.map((item) => (
           <button
             key={item.id}
             onClick={() => setTab(item.id)}
-            className={`border-b-2 px-4 py-2 text-sm font-medium transition ${
+            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition ${
               tab === item.id
                 ? 'border-brand-500 text-brand-600'
                 : 'border-transparent text-muted hover:text-gray-700'
@@ -528,20 +701,47 @@ export default function InventoryPage() {
         ))}
       </div>
 
+      <InventoryFilterBar
+        filters={filters}
+        siteOptions={siteOptions}
+        categoryOptions={categoryOptions}
+        showMovementType={tab === 'ledger'}
+        resultCount={
+          tab === 'overview'
+            ? filteredStockLines.length
+            : tab === 'receipts'
+              ? filteredReceipts.length
+              : ledger?.meta.total
+        }
+        onChange={updateFilters}
+        onClear={clearFilters}
+        active={hasActiveFilters(filters, tab === 'ledger')}
+      />
+
       {loading ? (
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
       ) : tab === 'overview' ? (
         <StockListTab
-          stockLines={stockLines}
+          stockLines={filteredStockLines}
+          emptyMessage={
+            hasActiveFilters(filters, false) && filteredStockLines.length === 0
+              ? 'No stock matches your filters.'
+              : undefined
+          }
           onAllocate={openAllocateFromStock}
           onIssue={openConsumeFromStock}
         />
       ) : tab === 'receipts' ? (
         <ReceiptsTab
-          receipts={receipts ?? []}
+          receipts={filteredReceipts}
           loading={receiptsLoading}
+          emptyMessage={
+            hasActiveFilters(filters, false) && filteredReceipts.length === 0
+              ? 'No receipts match your filters.'
+              : undefined
+          }
           onAllocate={openAllocateFromReceipt}
           onConsume={openConsumeFromReceipt}
         />
@@ -553,6 +753,11 @@ export default function InventoryPage() {
           totalPages={ledger?.meta.totalPages ?? 1}
           total={ledger?.meta.total}
           onPageChange={setLedgerPage}
+          emptyMessage={
+            hasActiveFilters(filters, true) && (ledger?.data?.length ?? 0) === 0 && !ledgerLoading
+              ? 'No ledger entries match your filters.'
+              : undefined
+          }
         />
       )}
 
@@ -690,6 +895,17 @@ export default function InventoryPage() {
                     <p className="mt-1 font-medium text-gray-900">{selectedConsumeLine.billNo}</p>
                   </div>
                 )}
+                {(selectedConsumeLine.categoryNameRaw || selectedConsumeLine.categoryCode) && (
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Category</p>
+                    <div className="mt-1">
+                      <CategoryTag
+                        name={selectedConsumeLine.categoryNameRaw}
+                        code={selectedConsumeLine.categoryCode}
+                      />
+                    </div>
+                  </div>
+                )}
                 {selectedConsumeLine.unit && (
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Unit</p>
@@ -720,54 +936,183 @@ export default function InventoryPage() {
   );
 }
 
+function InventoryFilterBar({
+  filters,
+  siteOptions,
+  categoryOptions,
+  showMovementType,
+  resultCount,
+  onChange,
+  onClear,
+  active,
+}: {
+  filters: InventoryFilterState;
+  siteOptions: { value: string; label: string }[];
+  categoryOptions: { value: string; label: string }[];
+  showMovementType: boolean;
+  resultCount?: number;
+  onChange: (patch: Partial<InventoryFilterState>) => void;
+  onClear: () => void;
+  active: boolean;
+}) {
+  return (
+    <div className="card mb-4 !p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+        <div className="min-w-0 flex-1">
+          <Input
+            label="Search"
+            placeholder="Item, bill no., category, site..."
+            value={filters.search}
+            onChange={(e) => onChange({ search: e.target.value })}
+          />
+        </div>
+
+        <div
+          className={`grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:w-auto xl:min-w-[24rem] ${
+            showMovementType ? 'xl:grid-cols-3 xl:min-w-[36rem]' : 'xl:grid-cols-2'
+          }`}
+        >
+          <Select
+            label="Site"
+            options={siteOptions}
+            value={filters.siteId}
+            onChange={(e) => onChange({ siteId: e.target.value })}
+          />
+          <Select
+            label="Category"
+            options={categoryOptions}
+            value={filters.categoryId}
+            onChange={(e) => onChange({ categoryId: e.target.value })}
+          />
+          {showMovementType && (
+            <Select
+              label="Transaction"
+              options={movementTypeOptions}
+              value={filters.movementType}
+              onChange={(e) => onChange({ movementType: e.target.value })}
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/70 pt-3 text-xs text-muted">
+        <span>
+          {typeof resultCount === 'number'
+            ? `${resultCount} record${resultCount === 1 ? '' : 's'}`
+            : ' '}
+        </span>
+        {active && (
+          <button
+            type="button"
+            className="text-sm font-medium text-brand-600 hover:text-brand-700"
+            onClick={onClear}
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InventoryRowActions({
+  onAllocate,
+  onIssue,
+  allocateLabel = 'Allocate',
+  issueLabel = 'Issue',
+  disabled = false,
+}: {
+  onAllocate: () => void;
+  onIssue: () => void;
+  allocateLabel?: string;
+  issueLabel?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <button
+        type="button"
+        title={allocateLabel}
+        disabled={disabled}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+        onClick={onAllocate}
+      >
+        <ArrowRightLeft className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">{allocateLabel}</span>
+      </button>
+      <button
+        type="button"
+        title={issueLabel}
+        disabled={disabled}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+        onClick={onIssue}
+      >
+        <MinusCircle className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">{issueLabel}</span>
+      </button>
+    </div>
+  );
+}
+
 function StockListTab({
   stockLines,
+  emptyMessage,
   onAllocate,
   onIssue,
 }: {
   stockLines: InventoryStockLine[];
+  emptyMessage?: string;
   onAllocate: (line: InventoryStockLine) => void;
   onIssue: (line: InventoryStockLine) => void;
 }) {
   return (
     <div className="card overflow-hidden !p-0">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-max text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[28%]" />
+            <col className="w-[16%]" />
+            <col className="w-[18%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[14%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-border bg-brand-50/50">
-              <th className="px-4 py-3 text-left font-medium">Item</th>
-              <th className="px-4 py-3 text-left font-medium">Description</th>
-              <th className="px-4 py-3 text-left font-medium">Site</th>
-              <th className="px-4 py-3 text-left font-medium">Bill No</th>
-              <th className="px-4 py-3 text-right font-medium">Available</th>
-              <th className="px-4 py-3 text-right font-medium">Action</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Item</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Category</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Site</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Bill No</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-700">Available</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody>
             {stockLines.map((line) => (
               <tr key={`${line.itemKey}:${line.siteId}`} className="border-b border-border/60 hover:bg-brand-50/20">
-                <td className="px-4 py-3 font-medium">{line.itemName}</td>
-                <td className="px-4 py-3">
-                  <div>{line.itemDescription}</div>
-                  {line.unit && <div className="text-xs text-muted">Unit: {line.unit}</div>}
+                <td className="px-4 py-3 align-top">
+                  <div className="font-medium text-gray-900">{line.itemDescription || line.itemName}</div>
+                  {line.itemName &&
+                    line.itemName !== line.itemDescription &&
+                    line.itemName.trim().toLowerCase() !== line.itemDescription.trim().toLowerCase() && (
+                      <div className="mt-0.5 text-xs text-muted">{line.itemName}</div>
+                    )}
+                  {line.unit && <div className="mt-1 text-xs text-muted">Unit: {line.unit}</div>}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{line.siteCode}</div>
+                <td className="px-4 py-3 align-top">
+                  <CategoryTag name={line.categoryNameRaw} code={line.categoryCode} />
+                </td>
+                <td className="px-4 py-3 align-top">
+                  <div className="font-medium text-gray-900">{line.siteCode}</div>
                   <div className="text-xs text-muted">{line.siteName}</div>
                 </td>
-                <td className="px-4 py-3 text-muted">{line.billNo ?? '—'}</td>
-                <td className="px-4 py-3 text-right font-medium">
-                  {line.quantity} {line.unit ?? ''}
+                <td className="px-4 py-3 align-top text-gray-600">{line.billNo ?? '—'}</td>
+                <td className="px-4 py-3 align-top text-right font-semibold text-gray-900">
+                  {line.quantity}
+                  {line.unit ? <span className="ml-1 text-xs font-normal text-muted">{line.unit}</span> : null}
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="secondary" className="!px-3 !py-1.5" onClick={() => onAllocate(line)}>
-                      <ArrowRightLeft className="h-3.5 w-3.5" /> Allocate
-                    </Button>
-                    <Button variant="ghost" className="!px-3 !py-1.5" onClick={() => onIssue(line)}>
-                      <MinusCircle className="h-3.5 w-3.5" /> Issue
-                    </Button>
-                  </div>
+                <td className="px-4 py-3 align-top">
+                  <InventoryRowActions onAllocate={() => onAllocate(line)} onIssue={() => onIssue(line)} />
                 </td>
               </tr>
             ))}
@@ -775,7 +1120,8 @@ function StockListTab({
               <tr>
                 <td colSpan={6} className="py-12 text-center text-muted">
                   <Package className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                  No stock yet. Add purchases with a site and item quantity — stock syncs automatically on refresh.
+                  {emptyMessage ??
+                    'No stock yet. Add purchases with a site and item quantity — stock syncs automatically on refresh.'}
                 </td>
               </tr>
             )}
@@ -789,11 +1135,13 @@ function StockListTab({
 function ReceiptsTab({
   receipts,
   loading,
+  emptyMessage,
   onAllocate,
   onConsume,
 }: {
   receipts: InventoryReceipt[];
   loading: boolean;
+  emptyMessage?: string;
   onAllocate: (receipt: InventoryReceipt) => void;
   onConsume: (receipt: InventoryReceipt) => void;
 }) {
@@ -808,60 +1156,68 @@ function ReceiptsTab({
   return (
     <div className="card overflow-hidden !p-0">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-max text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[18%]" />
+            <col className="w-[24%]" />
+            <col className="w-[14%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[8%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-border bg-brand-50/50">
-              <th className="px-4 py-3 text-left font-medium">Purchase</th>
-              <th className="px-4 py-3 text-left font-medium">Item</th>
-              <th className="px-4 py-3 text-left font-medium">Site</th>
-              <th className="px-4 py-3 text-right font-medium">Received</th>
-              <th className="px-4 py-3 text-right font-medium">Balance</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Purchase</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Item</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Category</th>
+              <th className="px-4 py-3 text-left font-medium text-gray-700">Site</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-700">Received</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-700">Balance</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody>
             {receipts.map((receipt) => (
-              <tr key={`${receipt.purchaseId}-${receipt.purchaseItemId}`} className="border-b border-border/60">
-                <td className="px-4 py-3">
-                  <div className="font-medium">#{receipt.purchaseSerialNo}</div>
-                  <div className="text-xs text-muted">
+              <tr key={`${receipt.purchaseId}-${receipt.purchaseItemId}`} className="border-b border-border/60 hover:bg-brand-50/20">
+                <td className="px-4 py-3 align-top">
+                  <div className="font-medium text-gray-900">#{receipt.purchaseSerialNo}</div>
+                  <div className="mt-0.5 text-xs text-muted">
                     {receipt.billNo} · {formatDate(receipt.billDate)}
                   </div>
                 </td>
-                <td className="px-4 py-3">{receipt.itemDescription}</td>
-                <td className="px-4 py-3">{receipt.siteCode}</td>
-                <td className="px-4 py-3 text-right">
-                  {receipt.receivedQty} {receipt.unit ?? ''}
+                <td className="px-4 py-3 align-top">
+                  <div className="font-medium text-gray-900">{receipt.itemDescription}</div>
+                  {receipt.unit && <div className="mt-1 text-xs text-muted">Unit: {receipt.unit}</div>}
                 </td>
-                <td className="px-4 py-3 text-right font-medium">
-                  {receipt.balanceQty} {receipt.unit ?? ''}
+                <td className="px-4 py-3 align-top">
+                  <CategoryTag name={receipt.categoryNameRaw} code={receipt.categoryCode} />
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      className="!px-2 !py-1"
-                      disabled={receipt.balanceQty <= 0}
-                      onClick={() => onAllocate(receipt)}
-                    >
-                      Allocate
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="!px-2 !py-1"
-                      disabled={receipt.balanceQty <= 0}
-                      onClick={() => onConsume(receipt)}
-                    >
-                      Issue
-                    </Button>
-                  </div>
+                <td className="px-4 py-3 align-top">
+                  <div className="font-medium text-gray-900">{receipt.siteCode}</div>
+                  <div className="text-xs text-muted">{receipt.siteName}</div>
+                </td>
+                <td className="px-4 py-3 align-top text-right text-gray-700">
+                  {receipt.receivedQty}
+                  {receipt.unit ? <span className="ml-1 text-xs text-muted">{receipt.unit}</span> : null}
+                </td>
+                <td className="px-4 py-3 align-top text-right font-semibold text-gray-900">
+                  {receipt.balanceQty}
+                  {receipt.unit ? <span className="ml-1 text-xs font-normal text-muted">{receipt.unit}</span> : null}
+                </td>
+                <td className="px-4 py-3 align-top">
+                  <InventoryRowActions
+                    disabled={receipt.balanceQty <= 0}
+                    onAllocate={() => onAllocate(receipt)}
+                    onIssue={() => onConsume(receipt)}
+                  />
                 </td>
               </tr>
             ))}
             {receipts.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-muted">
-                  No purchase receipts found. Add purchases with items and a linked site.
+                <td colSpan={7} className="py-12 text-center text-muted">
+                  {emptyMessage ?? 'No purchase receipts found. Add purchases with items and a linked site.'}
                 </td>
               </tr>
             )}
@@ -878,6 +1234,7 @@ function LedgerTab({
   page,
   totalPages,
   total,
+  emptyMessage,
   onPageChange,
 }: {
   entries: Awaited<ReturnType<typeof inventoryApi.ledger>>['data'];
@@ -885,6 +1242,7 @@ function LedgerTab({
   page: number;
   totalPages: number;
   total?: number;
+  emptyMessage?: string;
   onPageChange: (page: number) => void;
 }) {
   const rows = useMemo(() => buildLedgerRows(entries), [entries]);
@@ -898,47 +1256,53 @@ function LedgerTab({
   }
 
   return (
-    <div className="card overflow-hidden !p-0">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-max text-sm">
-          <thead>
-            <tr className="border-b border-border bg-brand-50/50">
-              <th className="px-4 py-3 text-left font-medium">Date</th>
-              <th className="px-4 py-3 text-left font-medium">Transaction</th>
-              <th className="px-4 py-3 text-left font-medium">Item</th>
-              <th className="px-4 py-3 text-left font-medium">Details</th>
-              <th className="px-4 py-3 text-right font-medium">Qty</th>
-              <th className="px-4 py-3 text-left font-medium">Reference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-border/60 hover:bg-brand-50/20">
-                <td className="px-4 py-3 whitespace-nowrap">{formatDate(row.date)}</td>
-                <td className="px-4 py-3">
-                  <Badge variant={row.badgeVariant}>{row.label}</Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{row.itemDescription}</div>
-                  {row.unit && <div className="text-xs text-muted">{row.unit}</div>}
-                </td>
-                <td className="px-4 py-3 text-gray-700">{row.detail}</td>
-                <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${row.qtyClass}`}>
-                  {row.qtyPrefix}
-                  {row.quantity} {row.unit ?? ''}
-                </td>
-                <td className="px-4 py-3 text-xs text-muted">{row.reference ?? '—'}</td>
+    <div className="space-y-4">
+      <div className="card overflow-hidden !p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed text-sm">
+            <thead>
+              <tr className="border-b border-border bg-brand-50/50">
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Date</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Transaction</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Item</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Category</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Details</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-700">Qty</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Ref</th>
               </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-12 text-center text-muted">
-                  No ledger entries yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b border-border/60 hover:bg-brand-50/20">
+                  <td className="px-4 py-3 align-top whitespace-nowrap text-gray-700">{formatDate(row.date)}</td>
+                  <td className="px-4 py-3 align-top">
+                    <Badge variant={row.badgeVariant}>{row.label}</Badge>
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="font-medium text-gray-900">{row.itemDescription}</div>
+                    {row.unit && <div className="mt-1 text-xs text-muted">{row.unit}</div>}
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <CategoryTag name={row.categoryNameRaw} code={row.categoryCode} />
+                  </td>
+                  <td className="px-4 py-3 align-top text-gray-700">{row.detail}</td>
+                  <td className={`px-4 py-3 align-top text-right font-semibold whitespace-nowrap ${row.qtyClass}`}>
+                    {row.qtyPrefix}
+                    {row.quantity} {row.unit ?? ''}
+                  </td>
+                  <td className="px-4 py-3 align-top text-xs text-muted">{row.reference ?? '—'}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-muted">
+                    {emptyMessage ?? 'No ledger entries yet.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       <Pagination page={page} totalPages={totalPages} total={total} onPageChange={onPageChange} />
     </div>

@@ -9,6 +9,8 @@ import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
 import { formatDate } from '@/lib/formatters';
@@ -146,21 +148,26 @@ export default function TeamPage() {
         onClose={() => setCreateOpen(false)}
         title="Create User"
         footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button loading={createMutation.isPending} onClick={form.handleSubmit((d) => createMutation.mutate(d))}>
-              Create
-            </Button>
-          </div>
+          <ModalFormFooter
+            onCancel={() => setCreateOpen(false)}
+            onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
+            loading={createMutation.isPending}
+          />
         }
       >
         <form className="space-y-4">
-          <Input label="Name" {...form.register('name')} />
-          <Input label="Email" type="email" {...form.register('email')} />
-          <Input label="Password" type="password" {...form.register('password')} />
-          <Select label="Role" options={roleOptions} {...form.register('role')} />
+          <FormSection title="User Details" tone="brand">
+            <div className="space-y-4">
+              <Input label="Name" {...form.register('name')} />
+              <Input label="Email" type="email" {...form.register('email')} />
+            </div>
+          </FormSection>
+          <FormSection title="Access" tone="green">
+            <div className="space-y-4">
+              <Input label="Password" type="password" {...form.register('password')} />
+              <Select label="Role" options={roleOptions} {...form.register('role')} />
+            </div>
+          </FormSection>
         </form>
       </Modal>
 

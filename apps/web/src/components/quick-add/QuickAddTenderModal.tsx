@@ -12,6 +12,8 @@ import { tendersApi } from '@/api/tenders';
 import { Button } from '@/components/Button';
 import { Input, Textarea, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
+import { ModalFormFooter } from '@/components/ModalFormFooter';
+import { FormSection } from '@/components/FormSection';
 import { toast } from '@/lib/notify';
 
 const statusOptions = Object.values(TenderStatus).map((s) => ({
@@ -79,57 +81,68 @@ export function QuickAddTenderModal({ open, onClose, onCreated }: QuickAddTender
       size="xl"
       nested
       footer={
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={close}>
-            Cancel
-          </Button>
-          <Button loading={form.formState.isSubmitting} onClick={form.handleSubmit(onSubmit)}>
-            Add Tender
-          </Button>
-        </div>
+        <ModalFormFooter
+          onCancel={close}
+          onSubmit={form.handleSubmit(onSubmit)}
+          submitLabel="Add Tender"
+          loading={form.formState.isSubmitting}
+        />
       }
     >
-      <form className="grid gap-4 sm:grid-cols-2">
-        <Input label="Tender Name" {...form.register('tenderName')} />
-        <Input label="Tender No" {...form.register('tenderNo')} />
-        <Input label="Order Value" type="number" {...form.register('orderValue', { valueAsNumber: true })} />
-        <Input label="EMD" type="number" {...form.register('emd', { valueAsNumber: true })} />
-        <Input label="PG" type="number" {...form.register('pg', { valueAsNumber: true })} />
-        <Input label="SD from Bill" type="number" {...form.register('sdFromBill', { valueAsNumber: true })} />
-        <Input
-          label="Payment Received"
-          type="number"
-          {...form.register('paymentReceivedTillDate', { valueAsNumber: true })}
-        />
-        <Input
-          label="Outstanding"
-          type="number"
-          {...form.register('paymentOutstanding', { valueAsNumber: true })}
-        />
-        <Input
-          label="Execution Pending"
-          type="number"
-          {...form.register('executionPending', { valueAsNumber: true })}
-        />
-        <Input label="Work Completed" type="number" {...form.register('workCompleted', { valueAsNumber: true })} />
-        <Input label="BG Number" {...form.register('bgNumber')} />
-        <Input label="BG Expiry" type="date" {...form.register('bgExpiryDate', { valueAsDate: true })} />
-        <Select label="Status" options={statusOptions} {...form.register('status')} />
-
-        <div className="sm:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">Sites</h3>
-            <Button type="button" variant="secondary" onClick={() => append(defaultSite())}>
-              <Plus className="h-4 w-4" /> Add Site
-            </Button>
+      <form className="space-y-4">
+        <FormSection title="Tender Details" tone="brand">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="Tender Name" {...form.register('tenderName')} />
+            <Input label="Tender No" {...form.register('tenderNo')} />
+            <Select label="Status" options={statusOptions} {...form.register('status')} />
           </div>
+        </FormSection>
 
-          {form.formState.errors.sites?.message && (
-            <p className="text-sm text-red-500">{form.formState.errors.sites.message}</p>
-          )}
+        <FormSection title="Financial Details" tone="green">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="Order Value" type="number" {...form.register('orderValue', { valueAsNumber: true })} />
+            <Input label="EMD" type="number" {...form.register('emd', { valueAsNumber: true })} />
+            <Input label="PG" type="number" {...form.register('pg', { valueAsNumber: true })} />
+            <Input label="SD from Bill" type="number" {...form.register('sdFromBill', { valueAsNumber: true })} />
+            <Input
+              label="Payment Received"
+              type="number"
+              {...form.register('paymentReceivedTillDate', { valueAsNumber: true })}
+            />
+            <Input
+              label="Outstanding"
+              type="number"
+              {...form.register('paymentOutstanding', { valueAsNumber: true })}
+            />
+            <Input
+              label="Execution Pending"
+              type="number"
+              {...form.register('executionPending', { valueAsNumber: true })}
+            />
+            <Input label="Work Completed" type="number" {...form.register('workCompleted', { valueAsNumber: true })} />
+          </div>
+        </FormSection>
 
-          {fields.map((field, index) => (
-            <div key={field.id} className="rounded-xl border border-gray-200 p-4">
+        <FormSection title="Bank Guarantee & Sites" tone="red">
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="BG Number" {...form.register('bgNumber')} />
+              <Input label="BG Expiry" type="date" {...form.register('bgExpiryDate', { valueAsDate: true })} />
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-end">
+                <Button type="button" variant="secondary" onClick={() => append(defaultSite())}>
+                  <Plus className="h-4 w-4" /> Add Site
+                </Button>
+              </div>
+
+              {form.formState.errors.sites?.message && (
+                <p className="text-sm text-red-500">{form.formState.errors.sites.message}</p>
+              )}
+
+              {fields.map((field, index) => (
+                <div key={field.id} className="rounded-xl border border-red-200 bg-white/80 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-600">Site {index + 1}</span>
                 {fields.length > 1 && (
@@ -148,12 +161,14 @@ export function QuickAddTenderModal({ open, onClose, onCreated }: QuickAddTender
                 {...form.register(`sites.${index}.siteNameRaw`)}
               />
             </div>
-          ))}
-        </div>
+              ))}
+            </div>
+          </div>
+        </FormSection>
 
-        <div className="sm:col-span-2">
+        <FormSection title="Notes" tone="brand">
           <Textarea label="Notes" {...form.register('notes')} />
-        </div>
+        </FormSection>
       </form>
     </Modal>
   );
