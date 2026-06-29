@@ -9,6 +9,7 @@ export * from './tender.js';
 export * from './stock.js';
 export * from './inventory.js';
 export * from './labourExpense.js';
+export * from './outstandingPayment.js';
 export * from './employee.js';
 export * from './dashboard.js';
 export * from './activity.js';

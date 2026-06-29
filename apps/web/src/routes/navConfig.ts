@@ -10,6 +10,7 @@ import {
   Shield,
   HardHat,
   Wallet,
+  Banknote,
 } from 'lucide-react';
 import { Permission } from '@gupta/shared';
 
@@ -38,6 +39,12 @@ export const navConfig: NavItem[] = [
     label: 'Tenders',
     path: '/tenders',
     icon: FileText,
+    permission: Permission.MANAGE_TENDERS,
+  },
+  {
+    label: 'Outstanding Payment',
+    path: '/outstanding-payments',
+    icon: Banknote,
     permission: Permission.MANAGE_TENDERS,
   },
   {
