@@ -21,6 +21,7 @@ export const usersApi = {
     api.patch<User>(`/users/${id}/status`, { disabled }).then((r) => r.data),
   resetPassword: (id: string, password: string) =>
     api.post(`/users/${id}/reset-password`, { password }).then((r) => r.data),
+  remove: (id: string) => api.delete(`/users/${id}`).then((r) => r.data),
 };
 
 export type { AuthUser };

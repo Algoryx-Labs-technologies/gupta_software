@@ -44,5 +44,10 @@ router.post(
   activityLogger('reset_password', 'User'),
   asyncHandler(usersController.resetPassword),
 );
+router.delete(
+  '/:id',
+  activityLogger('delete', 'User'),
+  asyncHandler(usersController.remove),
+);
 
 export default router;

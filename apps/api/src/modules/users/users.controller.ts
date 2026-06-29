@@ -31,3 +31,8 @@ export async function resetPassword(req: Request, res: Response) {
   const user = await usersService.resetUserPassword(req.params.id, req.body.password);
   res.json(user);
 }
+
+export async function remove(req: Request, res: Response) {
+  const result = await usersService.deleteUser(req.params.id, req.user!.sub);
+  res.json(result);
+}

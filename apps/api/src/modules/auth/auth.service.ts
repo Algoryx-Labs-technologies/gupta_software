@@ -220,3 +220,19 @@ export async function getUserById(id: string) {
   if (!user) throw new ApiError(404, 'User not found');
   return user;
 }
+
+export async function deleteUser(id: string, requesterId: string) {
+  if (requesterId === id) {
+    throw new ApiError(400, 'You cannot delete your own account');
+  }
+
+  const user = await UserModel.findById(id);
+  if (!user) throw new ApiError(404, 'User not found');
+
+  if (user.role === Role.ADMIN) {
+    throw new ApiError(400, 'Cannot delete admin accounts');
+  }
+
+  await UserModel.findByIdAndDelete(id);
+  return { message: 'User deleted' };
+}
