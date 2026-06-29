@@ -12,7 +12,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { IndianRupee, Receipt, FileText, AlertTriangle } from 'lucide-react';
+import { IndianRupee, Receipt, FileText, AlertTriangle, Wallet } from 'lucide-react';
 import { dashboardApi } from '@/api/dashboard';
 import { tendersApi } from '@/api/tenders';
 import { PageWrapper } from '@/layouts/PageWrapper';
@@ -86,7 +86,7 @@ export default function DashboardPage() {
             </p>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <StatCard
               title="Total Purchase Value"
               value={formatCurrency(data.purchases.totalGrandValue)}
@@ -118,6 +118,12 @@ export default function DashboardPage() {
               value={formatCurrency(data.labourExpenses.totalAmount)}
               subtitle={`${formatNumber(data.labourExpenses.totalCount)} entries`}
               icon={IndianRupee}
+            />
+            <StatCard
+              title="Salary Expense"
+              value={formatCurrency(data.salaryExpenses.totalAmount)}
+              subtitle={`${formatNumber(data.salaryExpenses.totalDays)} days · ${formatNumber(data.salaryExpenses.employeeCount)} assignments`}
+              icon={Wallet}
             />
             <StatCard
               title="Outstanding Payments"
@@ -188,6 +194,22 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+
+            {!tenderId && data.salaryExpenses.byTender.length > 0 && (
+              <div className="card">
+                <h3 className="mb-4 font-semibold">Salary Expense by Tender</h3>
+                <div className="space-y-3">
+                  {data.salaryExpenses.byTender.map((row, i) => (
+                    <div key={row.tenderId} className="flex items-center justify-between gap-2">
+                      <span className="text-sm">
+                        {i + 1}. {row.tenderNo} — {row.tenderName}
+                      </span>
+                      <span className="text-sm font-medium">{formatCurrency(row.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {data.tenders.expiringBgs.length > 0 && (

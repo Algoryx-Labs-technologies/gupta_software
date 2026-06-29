@@ -40,6 +40,18 @@ export interface DashboardSummary {
       description?: string;
     }[];
   };
+  salaryExpenses: {
+    totalAmount: number;
+    totalDays: number;
+    employeeCount: number;
+    byTender: {
+      tenderId: string;
+      tenderName: string;
+      tenderNo: string;
+      total: number;
+      totalDays: number;
+    }[];
+  };
   inventory?: {
     lowStock: { itemId: string; itemName: string; siteId: string; siteName: string; quantity: number }[];
   };

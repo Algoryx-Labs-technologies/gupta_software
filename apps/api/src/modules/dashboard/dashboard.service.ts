@@ -5,6 +5,7 @@ import { TenderModel } from '../../models/Tender.js';
 import * as inventorySvc from '../inventory/inventory.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import * as labourExpenseSvc from '../labour-expenses/labour-expenses.service.js';
+import * as employeeSvc from '../employees/employees.service.js';
 
 function startOfDay(date: Date): Date {
   const start = new Date(date);
@@ -130,6 +131,49 @@ async function getLowStock(
   });
 }
 
+function buildSalaryExpenseStats(
+  summary: Awaited<ReturnType<typeof employeeSvc.getTenderExpenseSummary>>,
+  tender?: string,
+) {
+  if (tender) {
+    const selected = summary as {
+      totalExpense: number;
+      totalDays: number;
+      employees: unknown[];
+    } | null;
+
+    return {
+      totalAmount: selected?.totalExpense ?? 0,
+      totalDays: selected?.totalDays ?? 0,
+      employeeCount: selected?.employees.length ?? 0,
+      byTender: [],
+    };
+  }
+
+  const summaries = (summary as Array<{
+    tender: { _id: string; tenderName: string; tenderNo: string };
+    totalExpense: number;
+    totalDays: number;
+    employees: unknown[];
+  }>) ?? [];
+
+  return {
+    totalAmount: summaries.reduce((sum, row) => sum + row.totalExpense, 0),
+    totalDays: summaries.reduce((sum, row) => sum + row.totalDays, 0),
+    employeeCount: summaries.reduce((sum, row) => sum + row.employees.length, 0),
+    byTender: summaries
+      .sort((a, b) => b.totalExpense - a.totalExpense)
+      .slice(0, 5)
+      .map((row) => ({
+        tenderId: row.tender._id,
+        tenderName: row.tender.tenderName,
+        tenderNo: row.tender.tenderNo,
+        total: row.totalExpense,
+        totalDays: row.totalDays,
+      })),
+  };
+}
+
 export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string) {
   const normalizedDates = normalizeDateRange(dateFrom, dateTo);
   const purchaseMatch = buildPurchaseMatch(
@@ -147,6 +191,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
     topVendors,
     lowStock,
     labourExpenses,
+    salaryExpenseSummary,
   ] = await Promise.all([
     PurchaseModel.aggregate([
       { $match: purchaseMatch },
@@ -232,6 +277,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
       normalizedDates.dateTo,
       tender,
     ),
+    employeeSvc.getTenderExpenseSummary(tender),
   ]);
 
   const { tenderStats, statusCounts, expiringBgs } = tenderSection;
@@ -249,6 +295,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
     activeOrderValue: 0,
   };
   const statusMap = Object.fromEntries(statusCounts.map((s) => [s._id, s.count]));
+  const salaryExpenses = buildSalaryExpenseStats(salaryExpenseSummary, tender);
 
   return {
     purchases: {
@@ -303,6 +350,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
         description: e.description ?? (e as { notes?: string }).notes,
       })),
     },
+    salaryExpenses,
     inventory: {
       lowStock: lowStock.map((s) => {
         const item = s.item as { _id?: string; name?: string };
