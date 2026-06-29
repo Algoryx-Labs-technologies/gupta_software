@@ -106,7 +106,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   return (
     <>
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-surface md:block">
+      <aside className="hidden h-full w-64 shrink-0 overflow-hidden border-r border-border bg-surface md:block">
         {content}
       </aside>
       {mobileOpen && (

@@ -11,9 +11,9 @@ export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div className="flex h-screen overflow-hidden bg-bg">
       <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet context={{ openMobileMenu: () => setMobileOpen(true) } satisfies AppLayoutContext} />
         <DeveloperCredit className="shrink-0 border-t border-border bg-surface px-4 py-3 sm:px-6" />
       </div>
