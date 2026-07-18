@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { env } from '../../config/env.js';
+import { ApiError } from '../../utils/ApiError.js';
 import * as authService from './auth.service.js';
 
 const REFRESH_COOKIE = 'refreshToken';
@@ -38,8 +39,7 @@ export async function me(req: Request, res: Response) {
 export async function refresh(req: Request, res: Response) {
   const token = req.cookies?.[REFRESH_COOKIE];
   if (!token) {
-    res.status(401).json({ message: 'Refresh token missing' });
-    return;
+    throw new ApiError(401, 'Refresh token missing');
   }
   const accessToken = await authService.refreshAccessToken(token);
   res.json({ accessToken });

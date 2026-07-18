@@ -1,16 +1,20 @@
 import app from './app.js';
 import { env } from './config/env.js';
 import { connectDb } from './config/db.js';
+import { logger } from './utils/logger.js';
 
 async function start() {
   await connectDb();
 
   app.listen(env.PORT, () => {
-    console.log(`API server running on http://localhost:${env.PORT}`);
+    logger.info(`API server running on http://localhost:${env.PORT}`);
   });
 }
 
 start().catch((err) => {
-  console.error('Failed to start server:', err);
+  logger.error('Failed to start server', {
+    message: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+  });
   process.exit(1);
 });

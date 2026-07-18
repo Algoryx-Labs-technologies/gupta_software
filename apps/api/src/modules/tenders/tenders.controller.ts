@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { ApiError } from '../../utils/ApiError.js';
 import { storeAttachment } from '../../utils/attachmentStorage.js';
 import * as svc from './tenders.service.js';
 
@@ -25,8 +26,7 @@ export async function remove(req: Request, res: Response) {
 
 export async function uploadAttachment(req: Request, res: Response) {
   if (!req.file) {
-    res.status(400).json({ message: 'No file uploaded' });
-    return;
+    throw new ApiError(400, 'No file uploaded');
   }
 
   const stored = await storeAttachment(req.file, 'tenders');

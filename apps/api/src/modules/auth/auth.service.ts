@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { Role } from '@gupta/shared';
 import { UserModel } from '../../models/User.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { logger } from '../../utils/logger.js';
 import { signAccessToken, signRefreshToken } from '../../utils/jwt.js';
 import { logActivity } from '../../middleware/activityLogger.js';
 import {
@@ -92,7 +93,9 @@ export async function adminLogin(id: string, password: string, req: Request) {
       req,
     );
   } catch (err) {
-    console.error('Activity log failed (admin login still succeeded):', err);
+    logger.error('Activity log failed (admin login still succeeded)', {
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return {

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ActivityLogModel } from '../models/ActivityLog.js';
 import { buildActivityLogPayload } from '../utils/activityLogPayload.js';
+import { logger } from '../utils/logger.js';
 
 export function activityLogger(action: string, entity: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -25,7 +26,13 @@ export function activityLogger(action: string, entity: string) {
             actorName: req.user.name,
             actorEmail: req.user.email,
           }),
-        ).catch(console.error);
+        ).catch((err) => {
+          logger.error('Activity log write failed', {
+            message: err instanceof Error ? err.message : String(err),
+            action,
+            entity,
+          });
+        });
       }
 
       return originalJson(body);
