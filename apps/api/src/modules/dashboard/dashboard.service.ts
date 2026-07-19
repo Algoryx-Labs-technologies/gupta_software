@@ -4,8 +4,37 @@ import { PurchaseModel } from '../../models/Purchase.js';
 import { TenderModel } from '../../models/Tender.js';
 import * as inventorySvc from '../inventory/inventory.service.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { logger } from '../../utils/logger.js';
 import * as labourExpenseSvc from '../labour-expenses/labour-expenses.service.js';
 import * as employeeSvc from '../employees/employees.service.js';
+
+const SUMMARY_LOG = '[dashboard/summary]';
+
+async function timedStage<T>(
+  stage: string,
+  ctx: Record<string, unknown>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  logger.info(`${SUMMARY_LOG} stage start: ${stage}`, ctx);
+  try {
+    const result = await fn();
+    logger.info(`${SUMMARY_LOG} stage ok: ${stage}`, {
+      ...ctx,
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  } catch (err) {
+    logger.error(`${SUMMARY_LOG} stage failed: ${stage}`, {
+      ...ctx,
+      durationMs: Date.now() - startedAt,
+      errorName: err instanceof Error ? err.name : typeof err,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      errorStack: err instanceof Error ? err.stack : undefined,
+    });
+    throw err;
+  }
+}
 
 function startOfDay(date: Date): Date {
   const start = new Date(date);
@@ -103,7 +132,14 @@ async function getLowStock(
   tender?: string,
   selectedTender?: { sites?: { site?: mongoose.Types.ObjectId }[] },
 ) {
+  logger.info(`${SUMMARY_LOG} lowStock: fetching inventory overview`);
   const overview = await inventorySvc.getOverview();
+  logger.info(`${SUMMARY_LOG} lowStock: overview loaded`, {
+    sites: overview.sites.length,
+    items: overview.items.length,
+    cells: overview.cells.length,
+  });
+
   let cells = overview.cells.filter((cell) => cell.quantity > 0 && cell.quantity <= 5);
 
   if (tender) {
@@ -145,7 +181,7 @@ function buildSalaryExpenseStats(
     return {
       totalAmount: selected?.totalExpense ?? 0,
       totalDays: selected?.totalDays ?? 0,
-      employeeCount: selected?.employees.length ?? 0,
+      employeeCount: selected?.employees?.length ?? 0,
       byTender: [],
     };
   }
@@ -160,7 +196,7 @@ function buildSalaryExpenseStats(
   return {
     totalAmount: summaries.reduce((sum, row) => sum + row.totalExpense, 0),
     totalDays: summaries.reduce((sum, row) => sum + row.totalDays, 0),
-    employeeCount: summaries.reduce((sum, row) => sum + row.employees.length, 0),
+    employeeCount: summaries.reduce((sum, row) => sum + (row.employees?.length ?? 0), 0),
     byTender: summaries
       .sort((a, b) => b.totalExpense - a.totalExpense)
       .slice(0, 5)
@@ -175,194 +211,246 @@ function buildSalaryExpenseStats(
 }
 
 export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string) {
-  const normalizedDates = normalizeDateRange(dateFrom, dateTo);
-  const purchaseMatch = buildPurchaseMatch(
-    normalizedDates.dateFrom,
-    normalizedDates.dateTo,
-    tender,
-  );
-  const tenderSection = await getTenderSection(tender);
-  const selectedTender = 'selected' in tenderSection ? tenderSection.selected : undefined;
+  const startedAt = Date.now();
+  const ctx: Record<string, unknown> = {
+    dateFrom: dateFrom?.toISOString?.() ?? dateFrom ?? null,
+    dateTo: dateTo?.toISOString?.() ?? dateTo ?? null,
+    tender: tender ?? null,
+  };
 
-  const [
-    purchaseStats,
-    bySite,
-    byMonth,
-    topVendors,
-    lowStock,
-    labourExpenses,
-    salaryExpenseSummary,
-  ] = await Promise.all([
-    PurchaseModel.aggregate([
-      { $match: purchaseMatch },
-      {
-        $group: {
-          _id: null,
-          totalCount: { $sum: 1 },
-          totalGrandValue: { $sum: '$grandTotal' },
-          totalGst: { $sum: '$gstAmount' },
-          totalFreightLabour: {
-            $sum: {
-              $reduce: {
-                input: '$items',
-                initialValue: 0,
-                in: {
-                  $add: [
-                    '$$value',
-                    {
+  logger.info(`${SUMMARY_LOG} request start`, ctx);
+
+  try {
+    const normalizedDates = normalizeDateRange(dateFrom, dateTo);
+    const purchaseMatch = buildPurchaseMatch(
+      normalizedDates.dateFrom,
+      normalizedDates.dateTo,
+      tender,
+    );
+
+    logger.info(`${SUMMARY_LOG} normalized filters`, {
+      ...ctx,
+      normalizedDateFrom: normalizedDates.dateFrom?.toISOString() ?? null,
+      normalizedDateTo: normalizedDates.dateTo?.toISOString() ?? null,
+      purchaseMatchKeys: Object.keys(purchaseMatch),
+    });
+
+    const tenderSection = await timedStage('tenderSection', ctx, () => getTenderSection(tender));
+    const selectedTender = 'selected' in tenderSection ? tenderSection.selected : undefined;
+
+    const [
+      purchaseStats,
+      bySite,
+      byMonth,
+      topVendors,
+      lowStock,
+      labourExpenses,
+      salaryExpenseSummary,
+    ] = await Promise.all([
+      timedStage('purchaseStats', ctx, () =>
+        PurchaseModel.aggregate([
+          { $match: purchaseMatch },
+          {
+            $group: {
+              _id: null,
+              totalCount: { $sum: 1 },
+              totalGrandValue: { $sum: '$grandTotal' },
+              totalGst: { $sum: '$gstAmount' },
+              totalFreightLabour: {
+                $sum: {
+                  $reduce: {
+                    input: { $ifNull: ['$items', []] },
+                    initialValue: 0,
+                    in: {
                       $add: [
-                        { $ifNull: ['$$this.freight', 0] },
-                        { $ifNull: ['$$this.labour', 0] },
+                        '$$value',
+                        {
+                          $add: [
+                            { $ifNull: ['$$this.freight', 0] },
+                            { $ifNull: ['$$this.labour', 0] },
+                          ],
+                        },
                       ],
                     },
-                  ],
+                  },
                 },
               },
             },
           },
-        },
-      },
-    ]),
-    PurchaseModel.aggregate([
-      { $match: purchaseMatch },
-      { $group: { _id: '$site', total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
-      { $sort: { total: -1 } },
-      { $limit: 10 },
-      {
-        $lookup: { from: 'sites', localField: '_id', foreignField: '_id', as: 'site' },
-      },
-      { $unwind: { path: '$site', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          siteId: '$_id',
-          siteName: { $ifNull: ['$site.name', 'Unknown'] },
-          total: 1,
-          count: 1,
-        },
-      },
-    ]),
-    PurchaseModel.aggregate([
-      { $match: purchaseMatch },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m', date: '$billDate' } },
-          total: { $sum: '$grandTotal' },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-      { $limit: 12 },
-      { $project: { month: '$_id', total: 1, count: 1, _id: 0 } },
-    ]),
-    PurchaseModel.aggregate([
-      { $match: { ...purchaseMatch, vendor: { $exists: true, $ne: null } } },
-      { $group: { _id: '$vendor', total: { $sum: '$grandTotal' } } },
-      { $sort: { total: -1 } },
-      { $limit: 10 },
-      {
-        $lookup: { from: 'vendors', localField: '_id', foreignField: '_id', as: 'vendor' },
-      },
-      { $unwind: '$vendor' },
-      {
-        $project: {
-          vendorId: '$_id',
-          vendorName: '$vendor.name',
-          total: 1,
-        },
-      },
-    ]),
-    getLowStock(tender, selectedTender),
-    labourExpenseSvc.getSummaryStats(
-      normalizedDates.dateFrom,
-      normalizedDates.dateTo,
-      tender,
-    ),
-    employeeSvc.getTenderExpenseSummary(tender),
-  ]);
-
-  const { tenderStats, statusCounts, expiringBgs } = tenderSection;
-
-  const stats = purchaseStats[0] ?? {
-    totalCount: 0,
-    totalGrandValue: 0,
-    totalGst: 0,
-    totalFreightLabour: 0,
-  };
-
-  const tenderAgg = tenderStats[0] ?? {
-    totalOrderValue: 0,
-    totalOutstanding: 0,
-    activeOrderValue: 0,
-  };
-  const statusMap = Object.fromEntries(statusCounts.map((s) => [s._id, s.count]));
-  const salaryExpenses = buildSalaryExpenseStats(salaryExpenseSummary, tender);
-
-  return {
-    purchases: {
-      totalCount: stats.totalCount,
-      totalGrandValue: stats.totalGrandValue,
-      totalGst: stats.totalGst,
-      totalFreightLabour: stats.totalFreightLabour,
-      bySite: bySite.map((s) => ({
-        siteId: s.siteId?.toString() ?? '',
-        siteName: s.siteName,
-        total: s.total,
-        count: s.count,
-      })),
-      byMonth,
-      topVendors: topVendors.map((v) => ({
-        vendorId: v.vendorId.toString(),
-        vendorName: v.vendorName,
-        total: v.total,
-      })),
-    },
-    tenders: {
-      totalOrderValue: tenderAgg.totalOrderValue,
-      activeOrderValue: tenderAgg.activeOrderValue ?? 0,
-      totalOutstanding: tenderAgg.totalOutstanding,
-      activeCount: statusMap[TenderStatus.ACTIVE] ?? 0,
-      completedCount: statusMap[TenderStatus.COMPLETED] ?? 0,
-      pendingCount: statusMap[TenderStatus.PENDING] ?? 0,
-      expiredCount: statusMap[TenderStatus.EXPIRED] ?? 0,
-      cancelledCount: statusMap[TenderStatus.CANCELLED] ?? 0,
-      expiringBgs: expiringBgs.map((t) => ({
-        _id: t._id.toString(),
-        tenderName: t.tenderName,
-        tenderNo: t.tenderNo,
-        bgNumber: t.bgNumber,
-        bgExpiryDate: t.bgExpiryDate!.toISOString(),
-        daysUntilExpiry: Math.ceil(
-          (t.bgExpiryDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+        ]),
+      ),
+      timedStage('purchasesBySite', ctx, () =>
+        PurchaseModel.aggregate([
+          { $match: purchaseMatch },
+          { $group: { _id: '$site', total: { $sum: '$grandTotal' }, count: { $sum: 1 } } },
+          { $sort: { total: -1 } },
+          { $limit: 10 },
+          {
+            $lookup: { from: 'sites', localField: '_id', foreignField: '_id', as: 'site' },
+          },
+          { $unwind: { path: '$site', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              siteId: '$_id',
+              siteName: { $ifNull: ['$site.name', 'Unknown'] },
+              total: 1,
+              count: 1,
+            },
+          },
+        ]),
+      ),
+      timedStage('purchasesByMonth', ctx, () =>
+        PurchaseModel.aggregate([
+          { $match: { ...purchaseMatch, billDate: { $type: 'date' } } },
+          {
+            $group: {
+              _id: { $dateToString: { format: '%Y-%m', date: '$billDate' } },
+              total: { $sum: '$grandTotal' },
+              count: { $sum: 1 },
+            },
+          },
+          { $sort: { _id: 1 } },
+          { $limit: 12 },
+          { $project: { month: '$_id', total: 1, count: 1, _id: 0 } },
+        ]),
+      ),
+      timedStage('topVendors', ctx, () =>
+        PurchaseModel.aggregate([
+          { $match: { ...purchaseMatch, vendor: { $exists: true, $ne: null } } },
+          { $group: { _id: '$vendor', total: { $sum: '$grandTotal' } } },
+          { $sort: { total: -1 } },
+          { $limit: 10 },
+          {
+            $lookup: { from: 'vendors', localField: '_id', foreignField: '_id', as: 'vendor' },
+          },
+          { $unwind: { path: '$vendor', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              vendorId: '$_id',
+              vendorName: { $ifNull: ['$vendor.name', 'Unknown'] },
+              total: 1,
+            },
+          },
+        ]),
+      ),
+      timedStage('lowStock', ctx, () => getLowStock(tender, selectedTender)),
+      timedStage('labourExpenses', ctx, () =>
+        labourExpenseSvc.getSummaryStats(
+          normalizedDates.dateFrom,
+          normalizedDates.dateTo,
+          tender,
         ),
-      })),
-    },
-    labourExpenses: {
-      totalAmount: labourExpenses.totalAmount,
-      totalCount: labourExpenses.totalCount,
-      bySite: labourExpenses.bySite,
-      recent: labourExpenses.recent.map((e) => ({
-        _id: e._id.toString(),
-        tender: e.tender as never,
-        site: e.site as never,
-        siteNameRaw: e.siteNameRaw,
-        amount: e.amount,
-        expenseDate: e.expenseDate,
-        description: e.description ?? (e as { notes?: string }).notes,
-      })),
-    },
-    salaryExpenses,
-    inventory: {
-      lowStock: lowStock.map((s) => {
-        const item = s.item as { _id?: string; name?: string };
-        const site = s.site as { _id?: string; name?: string };
-        return {
-          itemId: item?._id?.toString?.() ?? '',
-          itemName: item?.name ?? 'Unknown',
-          siteId: site?._id?.toString?.() ?? '',
-          siteName: site?.name ?? 'Unknown',
-          quantity: s.quantity,
-        };
-      }),
-    },
-  };
+      ),
+      timedStage('salaryExpenses', ctx, () => employeeSvc.getTenderExpenseSummary(tender)),
+    ]);
+
+    const { tenderStats, statusCounts, expiringBgs } = tenderSection;
+
+    const stats = purchaseStats[0] ?? {
+      totalCount: 0,
+      totalGrandValue: 0,
+      totalGst: 0,
+      totalFreightLabour: 0,
+    };
+
+    const tenderAgg = tenderStats[0] ?? {
+      totalOrderValue: 0,
+      totalOutstanding: 0,
+      activeOrderValue: 0,
+    };
+    const statusMap = Object.fromEntries(statusCounts.map((s) => [s._id, s.count]));
+    const salaryExpenses = buildSalaryExpenseStats(salaryExpenseSummary, tender);
+
+    const result = {
+      purchases: {
+        totalCount: stats.totalCount,
+        totalGrandValue: stats.totalGrandValue,
+        totalGst: stats.totalGst,
+        totalFreightLabour: stats.totalFreightLabour,
+        bySite: bySite.map((s) => ({
+          siteId: s.siteId?.toString() ?? '',
+          siteName: s.siteName,
+          total: s.total,
+          count: s.count,
+        })),
+        byMonth,
+        topVendors: topVendors
+          .filter((v) => v.vendorId != null)
+          .map((v) => ({
+            vendorId: v.vendorId.toString(),
+            vendorName: v.vendorName,
+            total: v.total,
+          })),
+      },
+      tenders: {
+        totalOrderValue: tenderAgg.totalOrderValue,
+        activeOrderValue: tenderAgg.activeOrderValue ?? 0,
+        totalOutstanding: tenderAgg.totalOutstanding,
+        activeCount: statusMap[TenderStatus.ACTIVE] ?? 0,
+        completedCount: statusMap[TenderStatus.COMPLETED] ?? 0,
+        pendingCount: statusMap[TenderStatus.PENDING] ?? 0,
+        expiredCount: statusMap[TenderStatus.EXPIRED] ?? 0,
+        cancelledCount: statusMap[TenderStatus.CANCELLED] ?? 0,
+        expiringBgs: expiringBgs
+          .filter((t) => t._id && t.bgExpiryDate)
+          .map((t) => ({
+            _id: t._id.toString(),
+            tenderName: t.tenderName,
+            tenderNo: t.tenderNo,
+            bgNumber: t.bgNumber,
+            bgExpiryDate: t.bgExpiryDate!.toISOString(),
+            daysUntilExpiry: Math.ceil(
+              (t.bgExpiryDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+            ),
+          })),
+      },
+      labourExpenses: {
+        totalAmount: labourExpenses.totalAmount,
+        totalCount: labourExpenses.totalCount,
+        bySite: labourExpenses.bySite,
+        recent: labourExpenses.recent.map((e) => ({
+          _id: e._id.toString(),
+          tender: e.tender as never,
+          site: e.site as never,
+          siteNameRaw: e.siteNameRaw,
+          amount: e.amount,
+          expenseDate: e.expenseDate,
+          description: e.description ?? (e as { notes?: string }).notes,
+        })),
+      },
+      salaryExpenses,
+      inventory: {
+        lowStock: lowStock.map((s) => {
+          const item = s.item as { _id?: string; name?: string };
+          const site = s.site as { _id?: string; name?: string };
+          return {
+            itemId: item?._id?.toString?.() ?? '',
+            itemName: item?.name ?? 'Unknown',
+            siteId: site?._id?.toString?.() ?? '',
+            siteName: site?.name ?? 'Unknown',
+            quantity: s.quantity,
+          };
+        }),
+      },
+    };
+
+    logger.info(`${SUMMARY_LOG} request ok`, {
+      ...ctx,
+      durationMs: Date.now() - startedAt,
+      purchaseCount: result.purchases.totalCount,
+      lowStockCount: result.inventory.lowStock.length,
+      expiringBgCount: result.tenders.expiringBgs.length,
+    });
+
+    return result;
+  } catch (err) {
+    logger.error(`${SUMMARY_LOG} request failed`, {
+      ...ctx,
+      durationMs: Date.now() - startedAt,
+      errorName: err instanceof Error ? err.name : typeof err,
+      errorMessage: err instanceof Error ? err.message : String(err),
+      errorStack: err instanceof Error ? err.stack : undefined,
+    });
+    throw err;
+  }
 }

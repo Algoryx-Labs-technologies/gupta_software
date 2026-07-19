@@ -280,6 +280,7 @@ export async function getOverview() {
   const items = [...itemMap.values()].sort((a, b) => a.name.localeCompare(b.name));
   const cells = balanceRows
     .map((row) => {
+      if (!row._id?.site) return null;
       const itemId = row._id.item?.toString();
       return {
         itemKey: buildItemKey(itemId, row._id.itemDescription),
@@ -287,7 +288,7 @@ export async function getOverview() {
         quantity: Math.round(row.quantity * 100) / 100,
       };
     })
-    .filter((cell) => cell.quantity !== 0);
+    .filter((cell): cell is NonNullable<typeof cell> => cell != null && cell.quantity !== 0);
 
   const purchaseRefs = await InventoryLedgerModel.find({
     movementType: InventoryMovementType.PURCHASE_IN,

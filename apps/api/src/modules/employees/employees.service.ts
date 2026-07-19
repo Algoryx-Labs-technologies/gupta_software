@@ -242,8 +242,8 @@ export async function getTenderExpenseSummary(tenderId?: string) {
     }> = [];
 
     for (const emp of employees) {
-      for (const entry of emp.tenderHistory) {
-        if (entry.tender.toString() === tenderIdStr) {
+      for (const entry of emp.tenderHistory ?? []) {
+        if (entry.tender?.toString() === tenderIdStr) {
           employeeExpenses.push({
             employee: {
               _id: emp._id.toString(),
