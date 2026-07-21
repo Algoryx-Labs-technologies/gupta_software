@@ -828,12 +828,6 @@ export default function PurchasesPage() {
 
           <FormSection title="Items" tone="green">
             <div className="space-y-4">
-            <div className="flex items-center justify-end">
-              <Button type="button" variant="secondary" onClick={() => append(defaultItem())}>
-                <Plus className="h-4 w-4" /> Add Item
-              </Button>
-            </div>
-
             {form.formState.errors.items?.message && (
               <p className="text-sm text-red-500">{form.formState.errors.items.message}</p>
             )}
@@ -912,6 +906,12 @@ export default function PurchasesPage() {
                 </div>
               );
             })}
+
+            <div className="flex justify-center">
+              <Button type="button" variant="secondary" onClick={() => append(defaultItem())}>
+                <Plus className="h-4 w-4" /> Add Item
+              </Button>
+            </div>
             </div>
           </FormSection>
 
