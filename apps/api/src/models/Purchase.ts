@@ -1,4 +1,5 @@
 import mongoose, { Schema, type Document, type Types } from 'mongoose';
+import { isMongoSafeDate } from '@gupta/shared';
 
 export interface IAttachment {
   _id?: Types.ObjectId;
@@ -81,7 +82,14 @@ const purchaseSchema = new Schema<IPurchase>(
     vendor: { type: Schema.Types.ObjectId, ref: 'Vendor' },
     vendorNameRaw: { type: String, required: true, trim: true },
     tender: { type: Schema.Types.ObjectId, ref: 'Tender' },
-    billDate: { type: Date, required: true },
+    billDate: {
+      type: Date,
+      required: true,
+      validate: {
+        validator: (value: Date) => isMongoSafeDate(value),
+        message: 'Bill date must be between year 1 and 9999',
+      },
+    },
     billNo: { type: String, required: true, trim: true },
     billName: { type: String, trim: true, default: '' },
     site: { type: Schema.Types.ObjectId, ref: 'Site' },

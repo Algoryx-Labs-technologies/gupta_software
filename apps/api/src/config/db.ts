@@ -1,6 +1,7 @@
 import dns from 'dns';
 import mongoose from 'mongoose';
 import { env } from './env.js';
+import { auditInvalidPurchaseBillDates } from '../utils/auditInvalidPurchaseBillDates.js';
 import { backfillEntityCodes } from '../utils/backfillEntityCodes.js';
 import { logger } from '../utils/logger.js';
 
@@ -21,6 +22,13 @@ export async function connectDb(): Promise<void> {
     });
     logger.info('MongoDB connected');
     await backfillEntityCodes();
+    try {
+      await auditInvalidPurchaseBillDates();
+    } catch (err) {
+      logger.warn('Purchase billDate audit skipped', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('MongoDB connection failed', { message });

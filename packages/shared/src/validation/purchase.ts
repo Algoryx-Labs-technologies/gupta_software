@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { objectIdSchema } from './common.js';
+import { mongoSafeDateSchema } from '../utils/mongoDate.js';
 
 const optionalNumber = z.coerce.number().optional().nullable();
 
@@ -23,7 +24,7 @@ export const createPurchaseSchema = z.object({
   vendor: objectIdSchema.optional(),
   vendorNameRaw: z.string().min(1, 'Vendor name is required'),
   tender: z.string().min(1, 'Tender is required').regex(/^[a-f\d]{24}$/i, 'Invalid tender'),
-  billDate: z.coerce.date(),
+  billDate: mongoSafeDateSchema,
   billNo: z.string().min(1, 'Bill number is required'),
   billName: z.string().min(1, 'Bill name is required'),
   site: objectIdSchema.optional(),

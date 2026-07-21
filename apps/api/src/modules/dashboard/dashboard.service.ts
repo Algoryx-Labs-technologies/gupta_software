@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { TenderStatus } from '@gupta/shared';
+import { TenderStatus, buildMongoSafeBillDateMatch } from '@gupta/shared';
 import { PurchaseModel } from '../../models/Purchase.js';
 import { TenderModel } from '../../models/Tender.js';
 import * as inventorySvc from '../inventory/inventory.service.js';
@@ -58,11 +58,12 @@ function normalizeDateRange(dateFrom?: Date, dateTo?: Date) {
 function buildPurchaseMatch(dateFrom?: Date, dateTo?: Date, tender?: string) {
   const purchaseMatch: Record<string, unknown> = {};
   if (tender) purchaseMatch.tender = new mongoose.Types.ObjectId(tender);
-  if (dateFrom || dateTo) {
-    purchaseMatch.billDate = {};
-    if (dateFrom) (purchaseMatch.billDate as Record<string, Date>).$gte = dateFrom;
-    if (dateTo) (purchaseMatch.billDate as Record<string, Date>).$lte = dateTo;
-  }
+
+  const billDateBounds: { $gte?: Date; $lte?: Date } = {};
+  if (dateFrom) billDateBounds.$gte = dateFrom;
+  if (dateTo) billDateBounds.$lte = dateTo;
+  purchaseMatch.billDate = buildMongoSafeBillDateMatch(billDateBounds);
+
   return purchaseMatch;
 }
 
@@ -301,7 +302,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
       ),
       timedStage('purchasesByMonth', ctx, () =>
         PurchaseModel.aggregate([
-          { $match: { ...purchaseMatch, billDate: { $type: 'date' } } },
+          { $match: purchaseMatch },
           {
             $group: {
               _id: { $dateToString: { format: '%Y-%m', date: '$billDate' } },
