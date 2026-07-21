@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart,
@@ -26,30 +26,35 @@ const PIE_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#64748B'];
 export default function DashboardPage() {
   const [tenderId, setTenderId] = useState('');
 
-  const { data: tendersData } = useQuery({
+  const { data: tendersData, isLoading: tendersLoading } = useQuery({
     queryKey: ['tenders', 'dashboard-filter'],
     queryFn: () => tendersApi.list({ limit: 100, sortBy: 'tenderName', sortOrder: 'asc' }),
   });
 
   const tenderOptions = useMemo(
-    () => [
-      { value: '', label: 'All tenders' },
-      ...(tendersData?.data ?? []).map((t) => ({
+    () =>
+      (tendersData?.data ?? []).map((t) => ({
         value: t._id,
         label: `${t.tenderNo} — ${t.tenderName}`,
       })),
-    ],
     [tendersData],
   );
+
+  // Reason: default to the first tender once the list loads (no "All tenders" option)
+  useEffect(() => {
+    if (!tenderOptions.length) return;
+    const stillValid = tenderOptions.some((t) => t.value === tenderId);
+    if (!tenderId || !stillValid) {
+      setTenderId(tenderOptions[0].value);
+    }
+  }, [tenderOptions, tenderId]);
 
   const selectedTenderLabel = tenderOptions.find((t) => t.value === tenderId)?.label;
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', tenderId],
-    queryFn: () =>
-      dashboardApi.summary({
-        ...(tenderId && { tender: tenderId }),
-      }),
+    queryFn: () => dashboardApi.summary({ tender: tenderId }),
+    enabled: !!tenderId,
   });
 
   const tenderPie = data
@@ -73,15 +78,19 @@ export default function DashboardPage() {
     />
   );
 
+  const showLoading = tendersLoading || (!!tenderId && isLoading);
+
   return (
     <PageWrapper title="Dashboard" actions={filters}>
-      {isLoading ? (
+      {showLoading ? (
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
+      ) : !tenderOptions.length ? (
+        <p className="py-20 text-center text-sm text-muted">No tenders available</p>
       ) : data ? (
         <div className="space-y-6">
-          {tenderId && selectedTenderLabel && (
+          {selectedTenderLabel && (
             <p className="text-sm text-muted">
               Showing stats for <span className="font-medium text-gray-700">{selectedTenderLabel}</span>
             </p>
@@ -101,17 +110,9 @@ export default function DashboardPage() {
               icon={Receipt}
             />
             <StatCard
-              title={tenderId ? 'Tender Order Value' : 'Active Tenders'}
-              value={
-                tenderId
-                  ? formatCurrency(data.tenders.totalOrderValue)
-                  : formatNumber(data.tenders.activeCount)
-              }
-              subtitle={
-                tenderId
-                  ? selectedTenderLabel
-                  : formatCurrency(data.tenders.activeOrderValue) + ' active order value'
-              }
+              title="Tender Order Value"
+              value={formatCurrency(data.tenders.totalOrderValue)}
+              subtitle={selectedTenderLabel}
               icon={FileText}
             />
             <StatCard
@@ -195,22 +196,6 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-
-            {!tenderId && data.salaryExpenses.byTender.length > 0 && (
-              <div className="card">
-                <h3 className="mb-4 font-semibold">Salary Expense by Tender</h3>
-                <div className="space-y-3">
-                  {data.salaryExpenses.byTender.map((row, i) => (
-                    <div key={row.tenderId} className="flex items-center justify-between gap-2">
-                      <span className="text-sm">
-                        {i + 1}. {row.tenderNo} — {row.tenderName}
-                      </span>
-                      <span className="text-sm font-medium">{formatCurrency(row.total)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {data.tenders.expiringBgs.length > 0 && (
