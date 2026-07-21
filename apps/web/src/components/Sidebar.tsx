@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Logo } from '@/components/Logo';
+import { DeveloperCredit } from '@/components/DeveloperCredit';
 import { useAuth } from '@/auth/AuthContext';
 import { getFilteredNav, type NavItem } from '@/routes/navConfig';
 
@@ -101,6 +102,9 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <NavLinkItem key={item.path} item={item} onNavigate={onMobileClose} />
         ))}
       </nav>
+      <div className="shrink-0 border-t border-border px-3 py-3">
+        <DeveloperCredit compact />
+      </div>
     </div>
   );
 
