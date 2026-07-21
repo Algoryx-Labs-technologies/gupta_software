@@ -17,23 +17,23 @@ export function Topbar({ title, onMenuClick, actions }: TopbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-surface/90 px-4 py-3 backdrop-blur md:px-6">
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-border bg-surface px-4 backdrop-blur md:px-6">
       <div className="flex items-center gap-3">
         <MobileMenuButton onClick={onMenuClick} />
         <h1 className="text-lg font-semibold text-gray-900 md:text-xl">{title}</h1>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         {actions}
         <div className="relative">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 hover:bg-brand-50"
+            className="flex h-10 items-center gap-2 rounded-xl border border-border px-3 hover:bg-brand-50"
           >
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium">{user?.name}</p>
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="max-w-[140px] truncate text-sm font-medium">{user?.name}</span>
               <Badge variant={user?.role}>{ROLE_LABELS[user?.role as Role]}</Badge>
             </div>
-            <ChevronDown className="h-4 w-4 text-muted" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
           </button>
           {menuOpen && (
             <>

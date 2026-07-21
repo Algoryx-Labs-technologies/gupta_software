@@ -63,13 +63,41 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
   options: { value: string; label: string }[];
+  layout?: 'stacked' | 'inline';
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select(
-  { label, error, options, className, id, name, ...props },
+  { label, error, options, layout = 'stacked', className, id, name, ...props },
   ref,
 ) {
   const inputId = id || name || label?.toLowerCase().replace(/\s+/g, '-');
+  const fieldClassName = cn(
+    'input-field',
+    layout === 'inline' && 'h-10 py-2',
+    error && 'border-red-400',
+    className,
+  );
+
+  if (layout === 'inline') {
+    return (
+      <div className="flex items-center gap-2">
+        {label && (
+          <label htmlFor={inputId} className="shrink-0 text-sm font-medium text-gray-700">
+            {label}
+          </label>
+        )}
+        <select ref={ref} id={inputId} name={name} className={fieldClassName} {...props}>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5">
       {label && (
@@ -77,13 +105,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           {label}
         </label>
       )}
-      <select
-        ref={ref}
-        id={inputId}
-        name={name}
-        className={cn('input-field', error && 'border-red-400', className)}
-        {...props}
-      >
+      <select ref={ref} id={inputId} name={name} className={fieldClassName} {...props}>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

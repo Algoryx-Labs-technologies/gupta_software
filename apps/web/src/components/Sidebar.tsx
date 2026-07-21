@@ -87,7 +87,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const content = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-border px-4 py-5">
+      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-4">
         <Logo size="sm" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-muted">Inventory & Purchase</p>

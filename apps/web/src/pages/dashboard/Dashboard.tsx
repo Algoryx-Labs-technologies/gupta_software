@@ -65,10 +65,11 @@ export default function DashboardPage() {
   const filters = (
     <Select
       label="Tender"
+      layout="inline"
       options={tenderOptions}
       value={tenderId}
       onChange={(e) => setTenderId(e.target.value)}
-      className="!w-auto min-w-[200px]"
+      className="!w-auto min-w-[180px]"
     />
   );
 
