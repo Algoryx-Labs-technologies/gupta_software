@@ -1,4 +1,4 @@
-import type { EmployeeAssignmentStatus } from '../enums.js';
+import type { EmployeeAssignmentStatus, EmployeeCategory } from '../enums.js';
 
 export interface EmployeeTenderHistory {
   _id?: string;
@@ -14,6 +14,8 @@ export interface Employee {
   phone: string;
   employeeId: string;
   salary: number;
+  category: EmployeeCategory;
+  categoryOther?: string;
   status: EmployeeAssignmentStatus;
   currentTender?: string;
   currentDaysWorked: number;

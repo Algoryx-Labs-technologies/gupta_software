@@ -14,6 +14,9 @@ import {
 import {
   createEmployeeSchema,
   EmployeeAssignmentStatus,
+  EmployeeCategory,
+  EMPLOYEE_CATEGORY_LABELS,
+  resolveCategoryLabel,
   type CreateEmployeeInput,
   type EmployeePopulated,
   type TenderSalaryExpenseSummary,
@@ -45,6 +48,11 @@ const statusVariants: Record<EmployeeAssignmentStatus, string> = {
   [EmployeeAssignmentStatus.CHANGED]: 'pending',
 };
 
+const categoryOptions = Object.values(EmployeeCategory).map((value) => ({
+  value,
+  label: EMPLOYEE_CATEGORY_LABELS[value],
+}));
+
 function getTenderLabel(
   tender?: EmployeePopulated['currentTender'] | null,
 ): string {
@@ -58,6 +66,8 @@ const defaultFormValues = (): CreateEmployeeInput => ({
   phone: '',
   employeeId: '',
   salary: 0,
+  category: EmployeeCategory.OFFICE,
+  categoryOther: '',
 });
 
 export default function EmployeeSalaryPage() {
@@ -65,6 +75,7 @@ export default function EmployeeSalaryPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editEmployee, setEditEmployee] = useState<EmployeePopulated | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -80,10 +91,11 @@ export default function EmployeeSalaryPage() {
     limit: 20,
     ...(search && { search }),
     ...(statusFilter && { status: statusFilter }),
+    ...(categoryFilter && { category: categoryFilter }),
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['employees', page, search, statusFilter],
+    queryKey: ['employees', page, search, statusFilter, categoryFilter],
     queryFn: () => employeesApi.list(listParams),
   });
 
@@ -115,6 +127,8 @@ export default function EmployeeSalaryPage() {
     resolver: zodResolver(createEmployeeSchema) as never,
     defaultValues: defaultFormValues(),
   });
+
+  const selectedCategory = form.watch('category');
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['employees'] });
@@ -224,6 +238,8 @@ export default function EmployeeSalaryPage() {
       phone: employee.phone,
       employeeId: employee.employeeId,
       salary: employee.salary,
+      category: employee.category ?? EmployeeCategory.OFFICE,
+      categoryOther: employee.categoryOther ?? '',
     });
     setModalOpen(true);
   };
@@ -293,6 +309,12 @@ export default function EmployeeSalaryPage() {
   const columns: Column<EmployeePopulated>[] = [
     { key: 'employeeId', header: 'Emp ID' },
     { key: 'name', header: 'Name' },
+    {
+      key: 'category',
+      header: 'Category',
+      render: (r) =>
+        resolveCategoryLabel(r.category, r.categoryOther, EMPLOYEE_CATEGORY_LABELS),
+    },
     { key: 'phone', header: 'Phone' },
     {
       key: 'salary',
@@ -447,6 +469,21 @@ export default function EmployeeSalaryPage() {
             }}
             className="!w-40"
           />
+          <Select
+            options={[
+              { value: '', label: 'All categories' },
+              ...Object.values(EmployeeCategory).map((value) => ({
+                value,
+                label: EMPLOYEE_CATEGORY_LABELS[value],
+              })),
+            ]}
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setPage(1);
+            }}
+            className="!w-44"
+          />
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Add Employee
           </Button>
@@ -537,20 +574,20 @@ export default function EmployeeSalaryPage() {
         onClose={closeModal}
         title={editEmployee ? 'Edit Employee' : 'Add Employee'}
         size="lg"
+        onSubmit={form.handleSubmit((d) =>
+          editEmployee
+            ? updateMutation.mutate({ id: editEmployee._id, data: d })
+            : createMutation.mutate(d),
+        )}
         footer={
           <ModalFormFooter
             onCancel={closeModal}
-            onSubmit={form.handleSubmit((d) =>
-              editEmployee
-                ? updateMutation.mutate({ id: editEmployee._id, data: d })
-                : createMutation.mutate(d),
-            )}
             submitLabel={editEmployee ? 'Update' : 'Create'}
             loading={createMutation.isPending || updateMutation.isPending}
           />
         }
       >
-        <form className="space-y-4">
+        <div className="space-y-4">
           <FormSection title="Employee Details" tone="brand">
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -568,6 +605,26 @@ export default function EmployeeSalaryPage() {
                 error={form.formState.errors.employeeId?.message}
                 {...form.register('employeeId')}
               />
+              <Select
+                label="Category"
+                options={categoryOptions}
+                error={form.formState.errors.category?.message}
+                {...form.register('category', {
+                  onChange: () => {
+                    if (form.getValues('category') !== EmployeeCategory.OTHER) {
+                      form.setValue('categoryOther', '');
+                    }
+                  },
+                })}
+              />
+              {selectedCategory === EmployeeCategory.OTHER && (
+                <Input
+                  label="Specify category"
+                  placeholder="e.g. Driver, Storekeeper"
+                  error={form.formState.errors.categoryOther?.message}
+                  {...form.register('categoryOther')}
+                />
+              )}
             </div>
           </FormSection>
           <FormSection title="Salary" tone="green">
@@ -579,7 +636,7 @@ export default function EmployeeSalaryPage() {
               {...form.register('salary', { valueAsNumber: true })}
             />
           </FormSection>
-        </form>
+        </div>
       </Modal>
 
       <Modal

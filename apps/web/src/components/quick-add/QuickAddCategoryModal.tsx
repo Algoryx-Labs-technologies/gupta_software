@@ -47,16 +47,16 @@ export function QuickAddCategoryModal({ open, onClose, onCreated }: QuickAddCate
       title="Add New Category"
       size="md"
       nested
+      onSubmit={form.handleSubmit(onSubmit)}
       footer={
         <ModalFormFooter
           onCancel={close}
-          onSubmit={form.handleSubmit(onSubmit)}
           submitLabel="Add Category"
           loading={form.formState.isSubmitting}
         />
       }
     >
-      <form className="space-y-4">
+      <div className="space-y-4">
         <FormSection title="Category Details" tone="brand">
           <Input
             label="Category Name"
@@ -67,7 +67,7 @@ export function QuickAddCategoryModal({ open, onClose, onCreated }: QuickAddCate
         <FormSection title="Notes" tone="red">
           <Textarea label="Notes" {...form.register('notes')} />
         </FormSection>
-      </form>
+      </div>
     </Modal>
   );
 }

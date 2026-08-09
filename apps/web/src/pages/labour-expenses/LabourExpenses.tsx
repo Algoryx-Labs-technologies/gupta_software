@@ -5,6 +5,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
 import {
   createLabourExpenseSchema,
+  LabourExpenseCategory,
+  LABOUR_EXPENSE_CATEGORY_LABELS,
+  resolveCategoryLabel,
   type CreateLabourExpenseInput,
   type LabourExpensePopulated,
   type Tender,
@@ -33,6 +36,11 @@ type TenderOption = Tender & {
 
 type ExpenseRow = LabourExpensePopulated;
 
+const categoryOptions = Object.values(LabourExpenseCategory).map((value) => ({
+  value,
+  label: LABOUR_EXPENSE_CATEGORY_LABELS[value],
+}));
+
 function getSiteRefId(siteRef?: string | { _id: string }): string | undefined {
   if (!siteRef) return undefined;
   return typeof siteRef === 'string' ? siteRef : siteRef._id;
@@ -51,6 +59,8 @@ function getTenderLabel(tender: ExpenseRow['tender']): string {
 const defaultFormValues = (): CreateLabourExpenseInput => ({
   tender: '',
   siteNameRaw: '',
+  category: LabourExpenseCategory.FOOD,
+  categoryOther: '',
   amount: 0,
   expenseDate: new Date(),
 });
@@ -60,6 +70,7 @@ export default function LabourExpensesPage() {
   const [page, setPage] = useState(1);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedSiteKey, setSelectedSiteKey] = useState('');
@@ -76,8 +87,14 @@ export default function LabourExpensesPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['labour-expenses', page, dateFrom, dateTo],
-    queryFn: () => labourExpensesApi.list({ page, limit: 20, ...dateParams }),
+    queryKey: ['labour-expenses', page, dateFrom, dateTo, categoryFilter],
+    queryFn: () =>
+      labourExpensesApi.list({
+        page,
+        limit: 20,
+        ...dateParams,
+        ...(categoryFilter && { category: categoryFilter }),
+      }),
   });
 
   const { data: tendersData } = useQuery({
@@ -94,6 +111,7 @@ export default function LabourExpensesPage() {
   });
 
   const selectedTenderId = form.watch('tender');
+  const selectedCategory = form.watch('category');
   const selectedTender = tenders.find((t) => t._id === selectedTenderId);
 
   const tenderOptions = useMemo(
@@ -177,6 +195,12 @@ export default function LabourExpensesPage() {
       render: (r) => formatDate(r.expenseDate),
     },
     {
+      key: 'category',
+      header: 'Category',
+      render: (r) =>
+        resolveCategoryLabel(r.category, r.categoryOther, LABOUR_EXPENSE_CATEGORY_LABELS),
+    },
+    {
       key: 'tender',
       header: 'Tender',
       render: (r) => getTenderLabel(r.tender),
@@ -232,6 +256,21 @@ export default function LabourExpensesPage() {
             }}
             className="!w-auto"
           />
+          <Select
+            options={[
+              { value: '', label: 'All categories' },
+              ...Object.values(LabourExpenseCategory).map((value) => ({
+                value,
+                label: LABOUR_EXPENSE_CATEGORY_LABELS[value],
+              })),
+            ]}
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setPage(1);
+            }}
+            className="!w-44"
+          />
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Add
           </Button>
@@ -269,15 +308,15 @@ export default function LabourExpensesPage() {
         onClose={closeModal}
         title="Add Labour Expense"
         size="lg"
+        onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
         footer={
           <ModalFormFooter
             onCancel={closeModal}
-            onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
             loading={createMutation.isPending}
           />
         }
       >
-        <form className="space-y-4">
+        <div className="space-y-4">
           <FormSection title="Tender & Site" tone="brand">
             <div className="grid gap-4 sm:grid-cols-2">
               <Select
@@ -305,6 +344,26 @@ export default function LabourExpensesPage() {
           </FormSection>
           <FormSection title="Expense Details" tone="green">
             <div className="grid gap-4 sm:grid-cols-2">
+              <Select
+                label="Category"
+                options={categoryOptions}
+                error={form.formState.errors.category?.message}
+                {...form.register('category', {
+                  onChange: () => {
+                    if (form.getValues('category') !== LabourExpenseCategory.OTHER) {
+                      form.setValue('categoryOther', '');
+                    }
+                  },
+                })}
+              />
+              {selectedCategory === LabourExpenseCategory.OTHER && (
+                <Input
+                  label="Specify category"
+                  placeholder="e.g. Transport, Tools"
+                  error={form.formState.errors.categoryOther?.message}
+                  {...form.register('categoryOther')}
+                />
+              )}
               <Input
                 label="Amount"
                 type="number"
@@ -328,7 +387,7 @@ export default function LabourExpensesPage() {
               {...form.register('description')}
             />
           </FormSection>
-        </form>
+        </div>
       </Modal>
 
       <ConfirmDialog

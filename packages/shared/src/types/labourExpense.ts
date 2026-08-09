@@ -1,8 +1,12 @@
+import type { LabourExpenseCategory } from '../enums.js';
+
 export interface LabourExpense {
   _id: string;
   tender: string;
   site?: string;
   siteNameRaw: string;
+  category: LabourExpenseCategory;
+  categoryOther?: string;
   amount: number;
   expenseDate: string | Date;
   description?: string;

@@ -80,16 +80,16 @@ export function QuickAddTenderModal({ open, onClose, onCreated }: QuickAddTender
       title="Add New Tender"
       size="xl"
       nested
+      onSubmit={form.handleSubmit(onSubmit)}
       footer={
         <ModalFormFooter
           onCancel={close}
-          onSubmit={form.handleSubmit(onSubmit)}
           submitLabel="Add Tender"
           loading={form.formState.isSubmitting}
         />
       }
     >
-      <form className="space-y-4">
+      <div className="space-y-4">
         <FormSection title="Tender Details" tone="brand">
           <div className="grid gap-4 sm:grid-cols-2">
             <Input label="Tender Name" {...form.register('tenderName')} />
@@ -169,7 +169,7 @@ export function QuickAddTenderModal({ open, onClose, onCreated }: QuickAddTender
         <FormSection title="Notes" tone="brand">
           <Textarea label="Notes" {...form.register('notes')} />
         </FormSection>
-      </form>
+      </div>
     </Modal>
   );
 }

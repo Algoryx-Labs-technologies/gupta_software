@@ -10,9 +10,20 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   footer?: React.ReactNode;
   nested?: boolean;
+  /** When set, wraps body + footer in a form so Enter submits correctly. */
+  onSubmit?: React.FormEventHandler<HTMLFormElement>;
 }
 
-export function Modal({ open, onClose, title, children, size = 'md', footer, nested }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  size = 'md',
+  footer,
+  nested,
+  onSubmit,
+}: ModalProps) {
   if (!open) return null;
 
   const sizes = {
@@ -21,6 +32,13 @@ export function Modal({ open, onClose, title, children, size = 'md', footer, nes
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
   };
+
+  const body = (
+    <>
+      <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+      {footer && <div className="border-t border-border px-5 py-4">{footer}</div>}
+    </>
+  );
 
   return (
     <div className={cn('fixed inset-0 flex items-center justify-center p-4', nested ? 'z-[60]' : 'z-50')}>
@@ -33,12 +51,23 @@ export function Modal({ open, onClose, title, children, size = 'md', footer, nes
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-gray-100">
+          <button type="button" onClick={onClose} className="rounded-lg p-1 hover:bg-gray-100">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="border-t border-border px-5 py-4">{footer}</div>}
+        {onSubmit ? (
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSubmit(e);
+            }}
+          >
+            {body}
+          </form>
+        ) : (
+          body
+        )}
       </div>
     </div>
   );
@@ -73,10 +102,10 @@ export function ConfirmDialog({
       size="sm"
       footer={
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant={variant} loading={loading} onClick={onConfirm}>
+          <Button type="button" variant={variant} loading={loading} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </div>

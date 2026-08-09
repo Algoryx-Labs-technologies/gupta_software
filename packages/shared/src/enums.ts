@@ -41,6 +41,48 @@ export enum EmployeeAssignmentStatus {
   CHANGED = 'changed',
 }
 
+export enum EmployeeCategory {
+  OFFICE = 'office',
+  SUPERVISOR = 'supervisor',
+  LABOURER = 'labourer',
+  OTHER = 'other',
+}
+
+export enum LabourExpenseCategory {
+  FOOD = 'food',
+  RATION = 'ration',
+  RENT = 'rent',
+  PETROL = 'petrol',
+  SITE_MATERIAL = 'site_material',
+  OTHER = 'other',
+}
+
+export const EMPLOYEE_CATEGORY_LABELS: Record<EmployeeCategory, string> = {
+  [EmployeeCategory.OFFICE]: 'Office Employee',
+  [EmployeeCategory.SUPERVISOR]: 'Supervisor',
+  [EmployeeCategory.LABOURER]: 'Labourer (Site)',
+  [EmployeeCategory.OTHER]: 'Others',
+};
+
+export const LABOUR_EXPENSE_CATEGORY_LABELS: Record<LabourExpenseCategory, string> = {
+  [LabourExpenseCategory.FOOD]: 'Food',
+  [LabourExpenseCategory.RATION]: 'Ration',
+  [LabourExpenseCategory.RENT]: 'Rent',
+  [LabourExpenseCategory.PETROL]: 'Petrol',
+  [LabourExpenseCategory.SITE_MATERIAL]: 'Site Material',
+  [LabourExpenseCategory.OTHER]: 'Others',
+};
+
+export function resolveCategoryLabel(
+  category: string | undefined | null,
+  categoryOther: string | undefined | null,
+  labels: Record<string, string>,
+): string {
+  if (!category) return '—';
+  if (category === 'other') return categoryOther?.trim() || 'Others';
+  return labels[category] ?? category;
+}
+
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.ADMIN]: [
     Permission.VIEW_DASHBOARD,

@@ -1,5 +1,6 @@
 import mongoose, { type FilterQuery } from 'mongoose';
 import {
+  LabourExpenseCategory,
   type CreateLabourExpenseInput,
   type LabourExpenseFilterInput,
 } from '@gupta/shared';
@@ -13,6 +14,7 @@ function buildFilter(filters: LabourExpenseFilterInput): FilterQuery<ILabourExpe
 
   if (filters.tender) query.tender = filters.tender;
   if (filters.site) query.site = filters.site;
+  if (filters.category) query.category = filters.category;
   if (filters.dateFrom || filters.dateTo) {
     query.expenseDate = {};
     if (filters.dateFrom) query.expenseDate.$gte = filters.dateFrom;
@@ -20,6 +22,13 @@ function buildFilter(filters: LabourExpenseFilterInput): FilterQuery<ILabourExpe
   }
 
   return query;
+}
+
+function normalizeCategoryFields(input: CreateLabourExpenseInput): CreateLabourExpenseInput {
+  if (input.category !== LabourExpenseCategory.OTHER) {
+    return { ...input, categoryOther: undefined };
+  }
+  return { ...input, categoryOther: input.categoryOther?.trim() || undefined };
 }
 
 export async function list(filters: LabourExpenseFilterInput) {
@@ -44,7 +53,7 @@ export async function list(filters: LabourExpenseFilterInput) {
 
 export async function create(input: CreateLabourExpenseInput, userId: string) {
   return LabourExpenseModel.create({
-    ...input,
+    ...normalizeCategoryFields(input),
     createdBy: resolveCreatedByRef(userId),
   });
 }

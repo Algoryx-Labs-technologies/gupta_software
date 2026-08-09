@@ -786,16 +786,16 @@ export default function PurchasesPage() {
         onClose={closeModal}
         title={editId ? 'Edit Purchase' : 'Add Purchase'}
         size="xl"
+        onSubmit={form.handleSubmit(onSubmit)}
         footer={
           <ModalFormFooter
             onCancel={closeModal}
-            onSubmit={form.handleSubmit(onSubmit)}
             submitLabel={editId ? 'Update' : 'Create'}
             loading={createMutation.isPending || updateMutation.isPending}
           />
         }
       >
-        <form className="space-y-4">
+        <div className="space-y-4">
           <FormSection title="Bill & Vendor Details" tone="brand">
             <div className="grid gap-4 sm:grid-cols-2">
               <Select
@@ -1010,7 +1010,7 @@ export default function PurchasesPage() {
           </div>
             </div>
           </FormSection>
-        </form>
+        </div>
       </Modal>
 
       <QuickAddVendorModal

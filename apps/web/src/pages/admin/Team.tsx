@@ -175,15 +175,15 @@ export default function TeamPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Create User"
+        onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
         footer={
           <ModalFormFooter
             onCancel={() => setCreateOpen(false)}
-            onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
             loading={createMutation.isPending}
           />
         }
       >
-        <form className="space-y-4">
+        <div className="space-y-4">
           <FormSection title="User Details" tone="brand">
             <div className="space-y-4">
               <Input label="Name" {...form.register('name')} />
@@ -196,7 +196,7 @@ export default function TeamPage() {
               <Select label="Role" options={roleOptions} {...form.register('role')} />
             </div>
           </FormSection>
-        </form>
+        </div>
       </Modal>
 
       <Modal

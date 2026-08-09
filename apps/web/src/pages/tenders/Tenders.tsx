@@ -310,16 +310,16 @@ export default function TendersPage() {
         onClose={closeModal}
         title={editId ? 'Edit Tender' : 'Add Tender'}
         size="xl"
+        onSubmit={form.handleSubmit(onSubmit)}
         footer={
           <ModalFormFooter
             onCancel={closeModal}
-            onSubmit={form.handleSubmit(onSubmit)}
             submitLabel={editId ? 'Update' : 'Create'}
             loading={createMutation.isPending || updateMutation.isPending}
           />
         }
       >
-        <form className="space-y-4">
+        <div className="space-y-4">
           <FormSection title="Tender Details" tone="brand">
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Tender Name" {...form.register('tenderName')} />
@@ -399,7 +399,7 @@ export default function TendersPage() {
           <FormSection title="Notes" tone="brand">
             <Textarea label="Notes" {...form.register('notes')} />
           </FormSection>
-        </form>
+        </div>
       </Modal>
 
       <ConfirmDialog

@@ -2,7 +2,8 @@ import { Button } from './Button';
 
 interface ModalFormFooterProps {
   onCancel: () => void;
-  onSubmit: () => void;
+  /** Optional click handler when the footer is not inside a Modal `onSubmit` form. */
+  onSubmit?: () => void;
   submitLabel?: string;
   cancelLabel?: string;
   loading?: boolean;
@@ -17,10 +18,15 @@ export function ModalFormFooter({
 }: ModalFormFooterProps) {
   return (
     <div className="flex justify-end gap-3">
-      <Button variant="cancel" onClick={onCancel}>
+      <Button type="button" variant="cancel" onClick={onCancel}>
         {cancelLabel}
       </Button>
-      <Button variant="success" loading={loading} onClick={onSubmit}>
+      <Button
+        type={onSubmit ? 'button' : 'submit'}
+        variant="success"
+        loading={loading}
+        onClick={onSubmit}
+      >
         {submitLabel}
       </Button>
     </div>

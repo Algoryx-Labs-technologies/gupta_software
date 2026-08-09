@@ -269,15 +269,15 @@ export default function OutstandingPaymentsPage() {
         onClose={closeModal}
         title="Add Outstanding Payment"
         size="lg"
+        onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
         footer={
           <ModalFormFooter
             onCancel={closeModal}
-            onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
             loading={createMutation.isPending}
           />
         }
       >
-        <form className="space-y-4">
+        <div className="space-y-4">
           <FormSection title="Tender & Site" tone="brand">
             <div className="grid gap-4 sm:grid-cols-2">
               <Select
@@ -336,7 +336,7 @@ export default function OutstandingPaymentsPage() {
               {...form.register('description')}
             />
           </FormSection>
-        </form>
+        </div>
       </Modal>
 
       <ConfirmDialog

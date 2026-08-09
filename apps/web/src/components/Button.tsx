@@ -27,6 +27,7 @@ export function Button({
 
   return (
     <button
+      type="button"
       className={cn(variants[variant], className)}
       disabled={disabled || loading}
       {...props}

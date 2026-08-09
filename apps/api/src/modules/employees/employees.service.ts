@@ -1,6 +1,7 @@
 import type { FilterQuery } from 'mongoose';
 import {
   EmployeeAssignmentStatus,
+  EmployeeCategory,
   type AssignEmployeeInput,
   type ChangeEmployeeTenderInput,
   type CreateEmployeeInput,
@@ -35,8 +36,21 @@ function buildFilter(filters: EmployeeFilterInput): FilterQuery<IEmployee> {
   }
   if (filters.status) query.status = filters.status;
   if (filters.tender) query.currentTender = filters.tender;
+  if (filters.category) query.category = filters.category;
 
   return query;
+}
+
+function normalizeCategoryFields<T extends { category?: EmployeeCategory; categoryOther?: string }>(
+  input: T,
+): T {
+  if (input.category && input.category !== EmployeeCategory.OTHER) {
+    return { ...input, categoryOther: undefined };
+  }
+  if (input.categoryOther !== undefined) {
+    return { ...input, categoryOther: input.categoryOther.trim() || undefined };
+  }
+  return input;
 }
 
 function enrichEmployee(employee: Record<string, unknown>) {
@@ -91,9 +105,10 @@ export async function create(input: CreateEmployeeInput, userId: string) {
   const existing = await EmployeeModel.findOne({ employeeId: input.employeeId.toUpperCase() });
   if (existing) throw new ApiError(409, 'Employee ID already exists');
 
+  const payload = normalizeCategoryFields(input);
   const employee = await EmployeeModel.create({
-    ...input,
-    employeeId: input.employeeId.toUpperCase(),
+    ...payload,
+    employeeId: payload.employeeId.toUpperCase(),
     createdBy: resolveCreatedByRef(userId),
   });
 
@@ -101,16 +116,17 @@ export async function create(input: CreateEmployeeInput, userId: string) {
 }
 
 export async function update(id: string, input: UpdateEmployeeInput) {
-  if (input.employeeId) {
+  const payload = normalizeCategoryFields({ ...input });
+  if (payload.employeeId) {
     const existing = await EmployeeModel.findOne({
-      employeeId: input.employeeId.toUpperCase(),
+      employeeId: payload.employeeId.toUpperCase(),
       _id: { $ne: id },
     });
     if (existing) throw new ApiError(409, 'Employee ID already exists');
-    input.employeeId = input.employeeId.toUpperCase();
+    payload.employeeId = payload.employeeId.toUpperCase();
   }
 
-  const employee = await EmployeeModel.findByIdAndUpdate(id, input, {
+  const employee = await EmployeeModel.findByIdAndUpdate(id, payload, {
     new: true,
     runValidators: true,
   })

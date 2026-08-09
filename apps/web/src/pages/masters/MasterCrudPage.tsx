@@ -171,20 +171,20 @@ export function MasterCrudPage<T extends { _id: string }>({
         open={modalOpen}
         onClose={closeModal}
         title={editId ? `Edit` : `Add`}
+        onSubmit={form.handleSubmit((d) =>
+          editId
+            ? updateMutation.mutate({ id: editId, data: d as Record<string, unknown> })
+            : createMutation.mutate(d as Record<string, unknown>),
+        )}
         footer={
           <ModalFormFooter
             onCancel={closeModal}
-            onSubmit={form.handleSubmit((d) =>
-              editId
-                ? updateMutation.mutate({ id: editId, data: d as Record<string, unknown> })
-                : createMutation.mutate(d as Record<string, unknown>),
-            )}
             submitLabel={editId ? 'Update' : 'Create'}
             loading={createMutation.isPending || updateMutation.isPending}
           />
         }
       >
-        <form className="space-y-4">
+        <div className="space-y-4">
           {fields.some((f) => f.type !== 'textarea') && (
             <FormSection title="Basic Information" tone="brand">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -207,7 +207,7 @@ export function MasterCrudPage<T extends { _id: string }>({
               </div>
             </FormSection>
           )}
-        </form>
+        </div>
       </Modal>
 
       <ConfirmDialog

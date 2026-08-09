@@ -52,16 +52,16 @@ export function QuickAddVendorModal({ open, onClose, onCreated }: QuickAddVendor
       title="Add New Vendor"
       size="lg"
       nested
+      onSubmit={form.handleSubmit(onSubmit)}
       footer={
         <ModalFormFooter
           onCancel={close}
-          onSubmit={form.handleSubmit(onSubmit)}
           submitLabel="Add Vendor"
           loading={form.formState.isSubmitting}
         />
       }
     >
-      <form className="space-y-4">
+      <div className="space-y-4">
         <FormSection title="Vendor Details" tone="brand">
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
@@ -83,7 +83,7 @@ export function QuickAddVendorModal({ open, onClose, onCreated }: QuickAddVendor
         <FormSection title="Notes" tone="red">
           <Textarea label="Notes" {...form.register('notes')} />
         </FormSection>
-      </form>
+      </div>
     </Modal>
   );
 }

@@ -1,5 +1,5 @@
 import mongoose, { Schema, type Document, type Types } from 'mongoose';
-import { EmployeeAssignmentStatus } from '@gupta/shared';
+import { EmployeeAssignmentStatus, EmployeeCategory } from '@gupta/shared';
 
 export interface IEmployeeTenderHistory {
   _id?: Types.ObjectId;
@@ -14,6 +14,8 @@ export interface IEmployee extends Document {
   phone: string;
   employeeId: string;
   salary: number;
+  category: EmployeeCategory;
+  categoryOther?: string;
   status: EmployeeAssignmentStatus;
   currentTender?: Types.ObjectId;
   currentDaysWorked: number;
@@ -40,6 +42,12 @@ const employeeSchema = new Schema<IEmployee>(
     phone: { type: String, required: true, trim: true },
     employeeId: { type: String, required: true, unique: true, trim: true, uppercase: true },
     salary: { type: Number, required: true, min: 0 },
+    category: {
+      type: String,
+      enum: Object.values(EmployeeCategory),
+      required: true,
+    },
+    categoryOther: { type: String, trim: true, maxlength: 100 },
     status: {
       type: String,
       enum: Object.values(EmployeeAssignmentStatus),
@@ -56,6 +64,7 @@ const employeeSchema = new Schema<IEmployee>(
 
 employeeSchema.index({ name: 1 });
 employeeSchema.index({ status: 1 });
+employeeSchema.index({ category: 1 });
 employeeSchema.index({ currentTender: 1 });
 
 export const EmployeeModel = mongoose.model<IEmployee>('Employee', employeeSchema);
