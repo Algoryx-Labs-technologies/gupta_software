@@ -16,7 +16,7 @@ interface UploadedFile {
 
 export async function storeAttachment(
   file: UploadedFile,
-  folder: 'purchases' | 'tenders',
+  folder: 'purchases' | 'tenders' | 'loas',
   options?: { pdfOnly?: boolean },
 ): Promise<{ filename: string; url: string }> {
   const ext = path.extname(file.originalname).toLowerCase();

@@ -11,6 +11,7 @@ import {
   HardHat,
   Wallet,
   Banknote,
+  ScrollText,
 } from 'lucide-react';
 import { Permission } from '@gupta/shared';
 
@@ -39,6 +40,12 @@ export const navConfig: NavItem[] = [
     label: 'Tenders',
     path: '/tenders',
     icon: FileText,
+    permission: Permission.MANAGE_TENDERS,
+  },
+  {
+    label: 'LOA',
+    path: '/loas',
+    icon: ScrollText,
     permission: Permission.MANAGE_TENDERS,
   },
   {

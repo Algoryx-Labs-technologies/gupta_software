@@ -13,6 +13,7 @@ import PurchasesPage from '@/pages/purchases/Purchases';
 import TendersPage from '@/pages/tenders/Tenders';
 import LabourExpensesPage from '@/pages/labour-expenses/LabourExpenses';
 import OutstandingPaymentsPage from '@/pages/outstanding-payments/OutstandingPayments';
+import LoasPage from '@/pages/loas/Loas';
 import EmployeeSalaryPage from '@/pages/employee-salary/EmployeeSalary';
 import InventoryPage from '@/pages/inventory/Inventory';
 import SitesPage from '@/pages/masters/Sites';
@@ -49,6 +50,7 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/purchases" element={<PurchasesPage />} />
               <Route path="/tenders" element={<TendersPage />} />
+              <Route path="/loas" element={<LoasPage />} />
               <Route path="/outstanding-payments" element={<OutstandingPaymentsPage />} />
               <Route path="/labour-expenses" element={<LabourExpensesPage />} />
               <Route path="/employee-salary" element={<EmployeeSalaryPage />} />
