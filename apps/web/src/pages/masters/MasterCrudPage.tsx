@@ -14,6 +14,13 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { toast } from '@/lib/notify';
 import type { PaginatedResponse } from '@gupta/shared';
 
+function singularize(plural: string): string {
+  if (/ies$/i.test(plural)) return `${plural.slice(0, -3)}y`;
+  if (/ses$/i.test(plural)) return plural.slice(0, -2);
+  if (/s$/i.test(plural)) return plural.slice(0, -1);
+  return plural;
+}
+
 interface FieldConfig {
   name: string;
   label: string;
@@ -48,6 +55,7 @@ export function MasterCrudPage<T extends { _id: string }>({
   removeFn,
 }: MasterCrudPageProps<T>) {
   const queryClient = useQueryClient();
+  const entityLabel = singularize(title);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -69,7 +77,7 @@ export function MasterCrudPage<T extends { _id: string }>({
     mutationFn: createFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [queryKey] });
-      toast.success(`${title.slice(0, -1)} created`);
+      toast.success(`${entityLabel} created`);
       closeModal();
     },
   });
@@ -78,7 +86,7 @@ export function MasterCrudPage<T extends { _id: string }>({
     mutationFn: ({ id, data: d }: { id: string; data: Record<string, unknown> }) => updateFn(id, d),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [queryKey] });
-      toast.success(`${title.slice(0, -1)} updated`);
+      toast.success(`${entityLabel} updated`);
       closeModal();
     },
   });
@@ -223,7 +231,7 @@ export function MasterCrudPage<T extends { _id: string }>({
         <Modal
           open={!!viewRow}
           onClose={() => setViewRow(null)}
-          title={`${title.slice(0, -1)} Details`}
+          title={`${entityLabel} Details`}
           footer={
             <div className="flex justify-end">
               <Button variant="secondary" onClick={() => setViewRow(null)}>
