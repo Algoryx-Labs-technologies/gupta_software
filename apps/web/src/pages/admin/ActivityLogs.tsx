@@ -7,7 +7,7 @@ import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { DataTable, type Column } from '@/components/DataTable';
-import { formatDate } from '@/lib/formatters';
+import { formatDate, formatTime } from '@/lib/formatters';
 import { exportToExcel } from '@/lib/exportToExcel';
 
 export default function ActivityLogsPage() {
@@ -21,9 +21,14 @@ export default function ActivityLogsPage() {
 
   const columns: Column<ActivityLog>[] = [
     {
-      key: 'createdAt',
-      header: 'Time',
+      key: 'date',
+      header: 'Date',
       render: (r) => formatDate(r.createdAt),
+    },
+    {
+      key: 'time',
+      header: 'Time',
+      render: (r) => formatTime(r.createdAt),
     },
     {
       key: 'user',
@@ -34,7 +39,6 @@ export default function ActivityLogsPage() {
     { key: 'action', header: 'Action' },
     { key: 'entity', header: 'Entity' },
     { key: 'entityId', header: 'Entity ID' },
-    { key: 'ip', header: 'IP' },
   ];
 
   return (
@@ -47,12 +51,12 @@ export default function ActivityLogsPage() {
             const { data: rows } = await activityApi.export();
             exportToExcel(
               rows.map((r) => ({
-                Time: formatDate(r.createdAt),
+                Date: formatDate(r.createdAt),
+                Time: formatTime(r.createdAt),
                 User: typeof r.user === 'object' ? (r.user as { email: string }).email : r.user,
                 Action: r.action,
                 Entity: r.entity,
                 EntityId: r.entityId,
-                IP: r.ip,
               })),
               'activity-logs',
             );
