@@ -47,7 +47,20 @@ export const purchaseFilterSchema = z.object({
   vendor: objectIdSchema.optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
-  sortBy: z.string().optional(),
+  sortBy: z
+    .enum([
+      'serialNo',
+      'billDate',
+      'billNo',
+      'billName',
+      'vendorNameRaw',
+      'siteNameRaw',
+      'grandTotal',
+      'createdAt',
+      'updatedAt',
+    ])
+    .optional()
+    .default('serialNo'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 

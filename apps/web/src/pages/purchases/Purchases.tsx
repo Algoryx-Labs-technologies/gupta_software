@@ -241,7 +241,14 @@ export default function PurchasesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchases', page, search],
-    queryFn: () => purchasesApi.list({ page, limit: 20, search: search || undefined }),
+    queryFn: () =>
+      purchasesApi.list({
+        page,
+        limit: 20,
+        search: search || undefined,
+        sortBy: 'serialNo',
+        sortOrder: 'desc',
+      }),
   });
 
   const { data: detailPurchase, isLoading: detailLoading } = useQuery({
@@ -581,7 +588,11 @@ export default function PurchasesPage() {
   };
 
   const handleExportExcel = async () => {
-    const { data: rows } = await purchasesApi.export({ search: search || undefined });
+    const { data: rows } = await purchasesApi.export({
+      search: search || undefined,
+      sortBy: 'serialNo',
+      sortOrder: 'desc',
+    });
     exportToExcel(
       rows.flatMap((r) =>
         r.items.map((item) => ({
@@ -605,7 +616,11 @@ export default function PurchasesPage() {
 
   const handleExportPdf = async () => {
     try {
-      const { data: rows } = await purchasesApi.export({ search: search || undefined });
+      const { data: rows } = await purchasesApi.export({
+        search: search || undefined,
+        sortBy: 'serialNo',
+        sortOrder: 'desc',
+      });
       await exportToPdf(
         'Purchase Report',
         [

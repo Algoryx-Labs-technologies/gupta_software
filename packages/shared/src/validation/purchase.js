@@ -39,7 +39,20 @@ exports.purchaseFilterSchema = zod_1.z.object({
     vendor: common_js_1.objectIdSchema.optional(),
     dateFrom: zod_1.z.coerce.date().optional(),
     dateTo: zod_1.z.coerce.date().optional(),
-    sortBy: zod_1.z.string().optional(),
+    sortBy: zod_1.z
+        .enum([
+        'serialNo',
+        'billDate',
+        'billNo',
+        'billName',
+        'vendorNameRaw',
+        'siteNameRaw',
+        'grandTotal',
+        'createdAt',
+        'updatedAt',
+    ])
+        .optional()
+        .default('serialNo'),
     sortOrder: zod_1.z.enum(['asc', 'desc']).default('desc'),
 });
 function computePurchaseTotals(input) {
