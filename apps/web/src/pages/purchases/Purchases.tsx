@@ -37,6 +37,7 @@ import { QuickAddVendorModal } from '@/components/quick-add/QuickAddVendorModal'
 import { QuickAddTenderModal } from '@/components/quick-add/QuickAddTenderModal';
 import { QuickAddCategoryModal } from '@/components/quick-add/QuickAddCategoryModal';
 import { toast } from '@/lib/notify';
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from '@/lib/uploadLimits';
 
 const ADD_VENDOR_VALUE = '__add_vendor__';
 const ADD_TENDER_VALUE = '__add_tender__';
@@ -518,8 +519,8 @@ export default function PurchasesPage() {
       e.target.value = '';
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Receipt must be under 10 MB');
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`Receipt must be ${MAX_UPLOAD_MB} MB or less`);
       e.target.value = '';
       return;
     }
@@ -990,7 +991,7 @@ export default function PurchasesPage() {
               <span className="text-sm font-medium text-gray-700">
                 {receiptFile ? receiptFile.name : 'Click to upload PDF receipt'}
               </span>
-              <span className="mt-1 text-xs text-gray-500">PDF only, max 10 MB</span>
+              <span className="mt-1 text-xs text-gray-500">PDF only, max {MAX_UPLOAD_MB} MB</span>
               <input
                 type="file"
                 accept="application/pdf,.pdf"

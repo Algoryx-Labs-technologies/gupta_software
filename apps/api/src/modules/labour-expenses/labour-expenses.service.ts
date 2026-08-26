@@ -25,10 +25,20 @@ function buildFilter(filters: LabourExpenseFilterInput): FilterQuery<ILabourExpe
 }
 
 function normalizeCategoryFields(input: CreateLabourExpenseInput): CreateLabourExpenseInput {
-  if (input.category !== LabourExpenseCategory.OTHER) {
-    return { ...input, categoryOther: undefined };
+  const category = input.category ?? LabourExpenseCategory.OTHER;
+  if (category !== LabourExpenseCategory.OTHER) {
+    return { ...input, category, categoryOther: undefined };
   }
-  return { ...input, categoryOther: input.categoryOther?.trim() || undefined };
+  return { ...input, category, categoryOther: input.categoryOther?.trim() || undefined };
+}
+
+function withCategoryDefaults<T extends { category?: LabourExpenseCategory | null; categoryOther?: string }>(
+  row: T,
+): T & { category: LabourExpenseCategory } {
+  return {
+    ...row,
+    category: row.category ?? LabourExpenseCategory.OTHER,
+  };
 }
 
 export async function list(filters: LabourExpenseFilterInput) {
@@ -48,14 +58,26 @@ export async function list(filters: LabourExpenseFilterInput) {
     LabourExpenseModel.countDocuments(filter),
   ]);
 
-  return { data, meta: buildPaginationMeta(page, limit, total) };
+  return {
+    data: data.map((row) => withCategoryDefaults(row)),
+    meta: buildPaginationMeta(page, limit, total),
+  };
 }
 
 export async function create(input: CreateLabourExpenseInput, userId: string) {
-  return LabourExpenseModel.create({
-    ...normalizeCategoryFields(input),
+  const payload = normalizeCategoryFields(input);
+  const expense = await LabourExpenseModel.create({
+    ...payload,
+    category: payload.category,
     createdBy: resolveCreatedByRef(userId),
   });
+
+  return LabourExpenseModel.findById(expense._id)
+    .populate('tender', 'tenderName tenderNo')
+    .populate('site', 'name code')
+    .populate('createdBy', 'name')
+    .lean()
+    .then((row) => (row ? withCategoryDefaults(row) : row));
 }
 
 export async function remove(id: string) {
@@ -64,17 +86,39 @@ export async function remove(id: string) {
   return expense;
 }
 
-export async function getSummaryStats(dateFrom?: Date, dateTo?: Date, tender?: string) {
-  const match: Record<string, unknown> = {};
+type LabourExpenseRecent = {
+  _id: mongoose.Types.ObjectId;
+  tender: unknown;
+  site?: unknown;
+  siteNameRaw: string;
+  category: LabourExpenseCategory;
+  categoryOther?: string;
+  amount: number;
+  expenseDate: Date;
+  description?: string;
+  notes?: string;
+};
+
+export async function getSummaryStats(
+  dateFrom?: Date,
+  dateTo?: Date,
+  tender?: string,
+): Promise<{
+  totalAmount: number;
+  totalCount: number;
+  bySite: { siteName: string; total: number; count: number }[];
+  recent: LabourExpenseRecent[];
+}> {
+  const match: FilterQuery<ILabourExpense> = {};
   if (tender) match.tender = new mongoose.Types.ObjectId(tender);
   if (dateFrom || dateTo) {
     match.expenseDate = {};
-    if (dateFrom) (match.expenseDate as Record<string, Date>).$gte = dateFrom;
-    if (dateTo) (match.expenseDate as Record<string, Date>).$lte = dateTo;
+    if (dateFrom) match.expenseDate.$gte = dateFrom;
+    if (dateTo) match.expenseDate.$lte = dateTo;
   }
 
-  const [stats, bySite, recent] = await Promise.all([
-    LabourExpenseModel.aggregate([
+  const [stats, bySite, recentDocs] = await Promise.all([
+    LabourExpenseModel.aggregate<{ totalAmount: number; totalCount: number }>([
       { $match: match },
       {
         $group: {
@@ -84,7 +128,7 @@ export async function getSummaryStats(dateFrom?: Date, dateTo?: Date, tender?: s
         },
       },
     ]),
-    LabourExpenseModel.aggregate([
+    LabourExpenseModel.aggregate<{ siteName: string; total: number; count: number }>([
       { $match: match },
       { $group: { _id: '$siteNameRaw', total: { $sum: '$amount' }, count: { $sum: 1 } } },
       { $sort: { total: -1 } },
@@ -100,6 +144,17 @@ export async function getSummaryStats(dateFrom?: Date, dateTo?: Date, tender?: s
   ]);
 
   const summary = stats[0] ?? { totalAmount: 0, totalCount: 0 };
+  const recent: LabourExpenseRecent[] = recentDocs.map((row) => ({
+    _id: row._id as mongoose.Types.ObjectId,
+    tender: row.tender,
+    site: row.site,
+    siteNameRaw: row.siteNameRaw,
+    category: row.category ?? LabourExpenseCategory.OTHER,
+    categoryOther: row.categoryOther,
+    amount: row.amount,
+    expenseDate: row.expenseDate,
+    description: row.description,
+  }));
 
   return {
     totalAmount: summary.totalAmount,

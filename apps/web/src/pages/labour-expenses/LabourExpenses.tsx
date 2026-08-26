@@ -257,6 +257,8 @@ export default function LabourExpensesPage() {
             className="!w-auto"
           />
           <Select
+            label="Category"
+            layout="inline"
             options={[
               { value: '', label: 'All categories' },
               ...Object.values(LabourExpenseCategory).map((value) => ({

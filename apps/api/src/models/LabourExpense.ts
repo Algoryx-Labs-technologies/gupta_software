@@ -24,6 +24,7 @@ const labourExpenseSchema = new Schema<ILabourExpense>(
       type: String,
       enum: Object.values(LabourExpenseCategory),
       required: true,
+      default: LabourExpenseCategory.OTHER,
     },
     categoryOther: { type: String, trim: true, maxlength: 100 },
     amount: { type: Number, required: true, min: 0 },

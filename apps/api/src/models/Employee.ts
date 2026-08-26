@@ -69,6 +69,23 @@ employeeSchema.index({ currentTender: 1 });
 
 export const EmployeeModel = mongoose.model<IEmployee>('Employee', employeeSchema);
 
+const EMPLOYEE_ID_PREFIX = 'GTE';
+const EMPLOYEE_ID_PAD = 3;
+
+export async function getNextEmployeeId(): Promise<string> {
+  const docs = await EmployeeModel.find({ employeeId: new RegExp(`^${EMPLOYEE_ID_PREFIX}\\d+$`, 'i') })
+    .select('employeeId')
+    .lean();
+
+  let max = 0;
+  for (const doc of docs) {
+    const n = Number.parseInt(doc.employeeId.replace(new RegExp(`^${EMPLOYEE_ID_PREFIX}`, 'i'), ''), 10);
+    if (!Number.isNaN(n) && n > max) max = n;
+  }
+
+  return `${EMPLOYEE_ID_PREFIX}${String(max + 1).padStart(EMPLOYEE_ID_PAD, '0')}`;
+}
+
 export const DAYS_IN_MONTH = 30;
 
 export function dailyRate(monthlySalary: number): number {

@@ -100,12 +100,16 @@ async function getTenderSection(tender?: string) {
   }
 
   const selected = await TenderModel.findById(tender)
-    .select('tenderName tenderNo orderValue paymentOutstanding status bgNumber bgExpiryDate sites')
+    .select('tenderName tenderNo orderValue paymentOutstanding status bgNumber bgExpiryDate sites progress')
     .lean();
 
   if (!selected) {
     throw new ApiError(404, 'Tender not found');
   }
+
+  const statusCounts = await TenderModel.aggregate([
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+  ]);
 
   const expiringBgs =
     selected.bgExpiryDate &&
@@ -123,7 +127,7 @@ async function getTenderSection(tender?: string) {
         activeOrderValue: selected.status === TenderStatus.ACTIVE ? selected.orderValue : 0,
       },
     ],
-    statusCounts: [{ _id: selected.status, count: 1 }],
+    statusCounts,
     expiringBgs,
     selected,
   };
@@ -346,6 +350,8 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
     ]);
 
     const { tenderStats, statusCounts, expiringBgs } = tenderSection;
+    const selectedProgress =
+      'selected' in tenderSection ? (tenderSection.selected?.progress ?? 0) : 0;
 
     const stats = purchaseStats[0] ?? {
       totalCount: 0,
@@ -404,6 +410,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
               (t.bgExpiryDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
             ),
           })),
+        progress: selectedProgress,
       },
       labourExpenses: {
         totalAmount: labourExpenses.totalAmount,
@@ -416,7 +423,7 @@ export async function getSummary(dateFrom?: Date, dateTo?: Date, tender?: string
           siteNameRaw: e.siteNameRaw,
           amount: e.amount,
           expenseDate: e.expenseDate,
-          description: e.description ?? (e as { notes?: string }).notes,
+          description: e.description ?? e.notes,
         })),
       },
       salaryExpenses,

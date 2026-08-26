@@ -13,6 +13,7 @@ export interface ITender extends Document {
   code: string;
   tenderName: string;
   tenderNo: string;
+  uniqueId?: string;
   orderValue: number;
   emd: number;
   pg: number;
@@ -23,6 +24,9 @@ export interface ITender extends Document {
   workCompleted: number;
   bgNumber?: string;
   bgExpiryDate?: Date;
+  fdrNumber?: string;
+  fdrExpiryDate?: Date;
+  progress: number;
   status: TenderStatus;
   sites: ITenderSite[];
   notes?: string;
@@ -55,6 +59,7 @@ const tenderSchema = new Schema<ITender>(
     code: { type: String, required: true, trim: true, unique: true },
     tenderName: { type: String, required: true, trim: true },
     tenderNo: { type: String, required: true, trim: true },
+    uniqueId: { type: String, trim: true },
     orderValue: { type: Number, default: 0 },
     emd: { type: Number, default: 0 },
     pg: { type: Number, default: 0 },
@@ -65,6 +70,9 @@ const tenderSchema = new Schema<ITender>(
     workCompleted: { type: Number, default: 0 },
     bgNumber: { type: String, trim: true },
     bgExpiryDate: { type: Date },
+    fdrNumber: { type: String, trim: true },
+    fdrExpiryDate: { type: Date },
+    progress: { type: Number, default: 0, min: 0, max: 100 },
     status: {
       type: String,
       enum: Object.values(TenderStatus),
@@ -85,6 +93,7 @@ const tenderSchema = new Schema<ITender>(
 tenderSchema.index({ status: 1 });
 tenderSchema.index({ tenderName: 'text', tenderNo: 'text', code: 'text', 'sites.siteNameRaw': 'text' });
 tenderSchema.index({ bgExpiryDate: 1 });
+tenderSchema.index({ fdrExpiryDate: 1 });
 
 export const TenderModel = mongoose.model<ITender>('Tender', tenderSchema);
 

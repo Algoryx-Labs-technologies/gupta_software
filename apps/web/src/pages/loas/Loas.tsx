@@ -21,6 +21,7 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { Spinner } from '@/components/Spinner';
 import { formatDate, formatTime } from '@/lib/formatters';
 import { toast } from '@/lib/notify';
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from '@/lib/uploadLimits';
 
 type LoaRow = LoaPopulated;
 
@@ -160,8 +161,8 @@ export default function LoasPage() {
       e.target.value = '';
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('PDF must be under 10 MB');
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`PDF must be ${MAX_UPLOAD_MB} MB or less`);
       e.target.value = '';
       return;
     }
@@ -406,7 +407,7 @@ export default function LoasPage() {
               <span className="text-sm font-medium text-gray-700">
                 {pdfFile ? pdfFile.name : 'Click to upload PDF'}
               </span>
-              <span className="mt-1 text-xs text-gray-500">PDF only, max 10 MB</span>
+              <span className="mt-1 text-xs text-gray-500">PDF only, max {MAX_UPLOAD_MB} MB</span>
               <input
                 type="file"
                 accept="application/pdf,.pdf"

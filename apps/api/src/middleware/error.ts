@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import multer from 'multer';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
+import { MAX_UPLOAD_BYTES } from '../utils/upload.js';
 
 function requestMeta(req: Request) {
   return {
@@ -46,8 +47,11 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   if (err instanceof multer.MulterError) {
+    const maxMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
     const message =
-      err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 10MB)' : `Upload error: ${err.message}`;
+      err.code === 'LIMIT_FILE_SIZE'
+        ? `File too large (max ${maxMb}MB)`
+        : `Upload error: ${err.message}`;
     logger.warn(message, { ...meta, statusCode: 400, code: err.code });
     res.status(400).json({ message });
     return;

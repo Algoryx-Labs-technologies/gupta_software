@@ -19,8 +19,10 @@ function buildFilter(filters: TenderFilterInput): FilterQuery<ITender> {
     query.$or = [
       { tenderName: new RegExp(filters.search, 'i') },
       { tenderNo: new RegExp(filters.search, 'i') },
+      { uniqueId: new RegExp(filters.search, 'i') },
       { code: new RegExp(filters.search, 'i') },
       { bgNumber: new RegExp(filters.search, 'i') },
+      { fdrNumber: new RegExp(filters.search, 'i') },
       { 'sites.siteNameRaw': new RegExp(filters.search, 'i') },
     ];
   }

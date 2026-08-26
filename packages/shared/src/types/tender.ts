@@ -13,6 +13,7 @@ export interface Tender {
   code: string;
   tenderName: string;
   tenderNo: string;
+  uniqueId?: string;
   orderValue: number;
   emd: number;
   pg: number;
@@ -23,6 +24,9 @@ export interface Tender {
   workCompleted: number;
   bgNumber?: string;
   bgExpiryDate?: string | Date;
+  fdrNumber?: string;
+  fdrExpiryDate?: string | Date;
+  progress: number;
   status: TenderStatus;
   sites: TenderSite[];
   notes?: string;

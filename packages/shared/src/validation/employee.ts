@@ -5,7 +5,6 @@ import { objectIdSchema } from './common.js';
 const employeeFieldsSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   phone: z.string().min(1, 'Phone is required').max(20),
-  employeeId: z.string().min(1, 'Employee ID is required').max(50),
   salary: z.coerce.number().min(0, 'Salary must be 0 or more'),
   category: z.nativeEnum(EmployeeCategory, { required_error: 'Category is required' }),
   categoryOther: z.string().max(100, 'Category is too long').optional(),

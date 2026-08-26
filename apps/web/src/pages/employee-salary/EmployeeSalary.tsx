@@ -64,7 +64,6 @@ function getTenderLabel(
 const defaultFormValues = (): CreateEmployeeInput => ({
   name: '',
   phone: '',
-  employeeId: '',
   salary: 0,
   category: EmployeeCategory.OFFICE,
   categoryOther: '',
@@ -236,7 +235,6 @@ export default function EmployeeSalaryPage() {
     form.reset({
       name: employee.name,
       phone: employee.phone,
-      employeeId: employee.employeeId,
       salary: employee.salary,
       category: employee.category ?? EmployeeCategory.OFFICE,
       categoryOther: employee.categoryOther ?? '',
@@ -599,11 +597,6 @@ export default function EmployeeSalaryPage() {
                 label="Phone"
                 error={form.formState.errors.phone?.message}
                 {...form.register('phone')}
-              />
-              <Input
-                label="Employee ID"
-                error={form.formState.errors.employeeId?.message}
-                {...form.register('employeeId')}
               />
               <Select
                 label="Category"

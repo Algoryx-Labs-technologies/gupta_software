@@ -17,6 +17,7 @@ import { Input, Textarea, Select } from '@/components/Input';
 import { Modal, ConfirmDialog } from '@/components/Modal';
 import { ModalFormFooter } from '@/components/ModalFormFooter';
 import { FormSection } from '@/components/FormSection';
+import { ProgressSlider } from '@/components/ProgressSlider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge } from '@/components/Badge';
 import { Spinner } from '@/components/Spinner';
@@ -36,6 +37,7 @@ const defaultSite = (): TenderSiteInput => ({
 const defaultFormValues = (): CreateTenderInput => ({
   tenderName: '',
   tenderNo: '',
+  uniqueId: '',
   orderValue: 0,
   emd: 0,
   pg: 0,
@@ -44,6 +46,7 @@ const defaultFormValues = (): CreateTenderInput => ({
   paymentOutstanding: 0,
   executionPending: 0,
   workCompleted: 0,
+  progress: 0,
   status: TenderStatus.PENDING,
   sites: [defaultSite()],
 });
@@ -58,6 +61,7 @@ function tenderToFormValues(tender: Tender): CreateTenderInput {
   return {
     tenderName: tender.tenderName,
     tenderNo: tender.tenderNo,
+    uniqueId: tender.uniqueId ?? '',
     orderValue: tender.orderValue,
     emd: tender.emd,
     pg: tender.pg,
@@ -68,6 +72,9 @@ function tenderToFormValues(tender: Tender): CreateTenderInput {
     workCompleted: tender.workCompleted,
     bgNumber: tender.bgNumber,
     bgExpiryDate: tender.bgExpiryDate ? new Date(tender.bgExpiryDate) : undefined,
+    fdrNumber: tender.fdrNumber,
+    fdrExpiryDate: tender.fdrExpiryDate ? new Date(tender.fdrExpiryDate) : undefined,
+    progress: tender.progress ?? 0,
     status: tender.status,
     notes: tender.notes,
     sites: (tender.sites?.length ? tender.sites : [defaultSite()]).map((site) => ({
@@ -77,11 +84,13 @@ function tenderToFormValues(tender: Tender): CreateTenderInput {
   };
 }
 
-function isBgExpiringSoon(date?: string | Date) {
-  if (!date) return false;
-  const d = new Date(date);
-  const days = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-  return days >= 0 && days <= 60;
+function isInstrumentExpiringSoon(...dates: Array<string | Date | undefined>) {
+  return dates.some((date) => {
+    if (!date) return false;
+    const d = new Date(date);
+    const days = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    return days >= 0 && days <= 60;
+  });
 }
 
 function formatDateTime(date: string | Date | undefined | null) {
@@ -228,6 +237,7 @@ export default function TendersPage() {
       render: (r) => formatCurrency(r.paymentOutstanding),
     },
     { key: 'bgExpiryDate', header: 'BG Expiry', render: (r) => formatDate(r.bgExpiryDate) },
+    { key: 'fdrExpiryDate', header: 'FDR Expiry', render: (r) => formatDate(r.fdrExpiryDate) },
     { key: 'status', header: 'Status', render: (r) => <Badge variant={r.status}>{r.status}</Badge> },
     {
       key: 'actions',
@@ -267,6 +277,7 @@ export default function TendersPage() {
                     ...r,
                     site: site.siteNameRaw,
                     bgExpiryDate: formatDate(r.bgExpiryDate),
+                    fdrExpiryDate: formatDate(r.fdrExpiryDate),
                   })),
                 ),
                 'tenders',
@@ -301,7 +312,9 @@ export default function TendersPage() {
         totalPages={data?.meta.totalPages ?? 1}
         total={data?.meta.total}
         onPageChange={setPage}
-        rowClassName={(r) => (isBgExpiringSoon(r.bgExpiryDate) ? 'bg-amber-50/60' : '')}
+        rowClassName={(r) =>
+          isInstrumentExpiringSoon(r.bgExpiryDate, r.fdrExpiryDate) ? 'bg-amber-50/60' : ''
+        }
         keyExtractor={(r) => r._id}
       />
 
@@ -325,6 +338,15 @@ export default function TendersPage() {
               <Input label="Tender Name" {...form.register('tenderName')} />
               <Input label="Tender No" {...form.register('tenderNo')} />
               <Select label="Status" options={statusOptions} {...form.register('status')} />
+              <Input label="Unique ID" {...form.register('uniqueId')} />
+              <div className="sm:col-span-2">
+                <ProgressSlider
+                  label="Progress"
+                  value={form.watch('progress') ?? 0}
+                  onChange={(value) => form.setValue('progress', value, { shouldDirty: true, shouldValidate: true })}
+                  error={form.formState.errors.progress?.message}
+                />
+              </div>
             </div>
           </FormSection>
 
@@ -353,20 +375,16 @@ export default function TendersPage() {
             </div>
           </FormSection>
 
-          <FormSection title="Bank Guarantee & Sites" tone="red">
+          <FormSection title="BG / FDR & Sites" tone="red">
             <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="BG Number" {...form.register('bgNumber')} />
+              <Input label="FDR Number" {...form.register('fdrNumber')} />
               <Input label="BG Expiry" type="date" {...form.register('bgExpiryDate', { valueAsDate: true })} />
+              <Input label="FDR Expiry" type="date" {...form.register('fdrExpiryDate', { valueAsDate: true })} />
             </div>
 
             <div className="space-y-4">
-            <div className="flex items-center justify-end">
-              <Button type="button" variant="secondary" onClick={() => append(defaultSite())}>
-                <Plus className="h-4 w-4" /> Add Site
-              </Button>
-            </div>
-
             {form.formState.errors.sites?.message && (
               <p className="text-sm text-red-500">{form.formState.errors.sites.message}</p>
             )}
@@ -392,6 +410,12 @@ export default function TendersPage() {
                 />
               </div>
             ))}
+
+            <div className="flex items-center justify-end">
+              <Button type="button" variant="secondary" onClick={() => append(defaultSite())}>
+                <Plus className="h-4 w-4" /> Add Site
+              </Button>
+            </div>
             </div>
             </div>
           </FormSection>
@@ -434,7 +458,9 @@ export default function TendersPage() {
             <DetailField label="Tender Code" value={detailTender.code} />
             <DetailField label="Tender No" value={detailTender.tenderNo} />
             <DetailField label="Tender Name" value={detailTender.tenderName} />
+            <DetailField label="Unique ID" value={detailTender.uniqueId} />
             <DetailField label="Status" value={<Badge variant={detailTender.status}>{detailTender.status}</Badge>} />
+            <DetailField label="Progress" value={`${detailTender.progress ?? 0}%`} />
             <DetailField label="Order Value" value={formatCurrency(detailTender.orderValue)} />
             <DetailField label="EMD" value={formatCurrency(detailTender.emd)} />
             <DetailField label="PG" value={formatCurrency(detailTender.pg)} />
@@ -448,6 +474,8 @@ export default function TendersPage() {
             <DetailField label="Work Completed" value={formatCurrency(detailTender.workCompleted)} />
             <DetailField label="BG Number" value={detailTender.bgNumber} />
             <DetailField label="BG Expiry Date" value={formatDate(detailTender.bgExpiryDate)} />
+            <DetailField label="FDR Number" value={detailTender.fdrNumber} />
+            <DetailField label="FDR Expiry Date" value={formatDate(detailTender.fdrExpiryDate)} />
             <DetailField label="Created By" value={getCreatedByLabel(detailTender.createdBy)} />
             <DetailField label="Created At" value={formatDateTime(detailTender.createdAt)} />
             <DetailField label="Updated At" value={formatDateTime(detailTender.updatedAt)} />

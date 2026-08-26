@@ -14,6 +14,7 @@ import {
   EmployeeModel,
   calculateExpense,
   dailyRate,
+  getNextEmployeeId,
   type IEmployee,
 } from '../../models/Employee.js';
 import { TenderModel } from '../../models/Tender.js';
@@ -102,13 +103,12 @@ export async function getById(id: string) {
 }
 
 export async function create(input: CreateEmployeeInput, userId: string) {
-  const existing = await EmployeeModel.findOne({ employeeId: input.employeeId.toUpperCase() });
-  if (existing) throw new ApiError(409, 'Employee ID already exists');
-
   const payload = normalizeCategoryFields(input);
+  const employeeId = await getNextEmployeeId();
+
   const employee = await EmployeeModel.create({
     ...payload,
-    employeeId: payload.employeeId.toUpperCase(),
+    employeeId,
     createdBy: resolveCreatedByRef(userId),
   });
 
@@ -117,14 +117,6 @@ export async function create(input: CreateEmployeeInput, userId: string) {
 
 export async function update(id: string, input: UpdateEmployeeInput) {
   const payload = normalizeCategoryFields({ ...input });
-  if (payload.employeeId) {
-    const existing = await EmployeeModel.findOne({
-      employeeId: payload.employeeId.toUpperCase(),
-      _id: { $ne: id },
-    });
-    if (existing) throw new ApiError(409, 'Employee ID already exists');
-    payload.employeeId = payload.employeeId.toUpperCase();
-  }
 
   const employee = await EmployeeModel.findByIdAndUpdate(id, payload, {
     new: true,

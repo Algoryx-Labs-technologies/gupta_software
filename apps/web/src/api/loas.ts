@@ -1,6 +1,7 @@
 import api from './axios';
 import type { Loa, PaginatedResponse } from '@gupta/shared';
 import type { CreateLoaInput, UpdateLoaInput } from '@gupta/shared';
+import { MAX_UPLOAD_BYTES } from '@/lib/uploadLimits';
 
 export const loasApi = {
   list: (params?: Record<string, unknown>) =>
@@ -16,6 +17,9 @@ export const loasApi = {
     return api
       .post<Loa>(`/loas/${id}/attachments`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120_000,
+        maxBodyLength: MAX_UPLOAD_BYTES,
+        maxContentLength: MAX_UPLOAD_BYTES,
       })
       .then((r) => r.data);
   },

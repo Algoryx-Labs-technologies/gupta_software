@@ -14,6 +14,7 @@ import { Input, Textarea, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { ModalFormFooter } from '@/components/ModalFormFooter';
 import { FormSection } from '@/components/FormSection';
+import { ProgressSlider } from '@/components/ProgressSlider';
 import { toast } from '@/lib/notify';
 
 const statusOptions = Object.values(TenderStatus).map((s) => ({
@@ -28,6 +29,7 @@ const defaultSite = (): TenderSiteInput => ({
 const defaultValues = (): CreateTenderInput => ({
   tenderName: '',
   tenderNo: '',
+  uniqueId: '',
   orderValue: 0,
   emd: 0,
   pg: 0,
@@ -36,6 +38,7 @@ const defaultValues = (): CreateTenderInput => ({
   paymentOutstanding: 0,
   executionPending: 0,
   workCompleted: 0,
+  progress: 0,
   status: TenderStatus.PENDING,
   sites: [defaultSite()],
 });
@@ -95,6 +98,15 @@ export function QuickAddTenderModal({ open, onClose, onCreated }: QuickAddTender
             <Input label="Tender Name" {...form.register('tenderName')} />
             <Input label="Tender No" {...form.register('tenderNo')} />
             <Select label="Status" options={statusOptions} {...form.register('status')} />
+            <Input label="Unique ID" {...form.register('uniqueId')} />
+            <div className="sm:col-span-2">
+              <ProgressSlider
+                label="Progress"
+                value={form.watch('progress') ?? 0}
+                onChange={(value) => form.setValue('progress', value, { shouldDirty: true, shouldValidate: true })}
+                error={form.formState.errors.progress?.message}
+              />
+            </div>
           </div>
         </FormSection>
 
@@ -123,45 +135,47 @@ export function QuickAddTenderModal({ open, onClose, onCreated }: QuickAddTender
           </div>
         </FormSection>
 
-        <FormSection title="Bank Guarantee & Sites" tone="red">
+        <FormSection title="BG / FDR & Sites" tone="red">
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="BG Number" {...form.register('bgNumber')} />
+              <Input label="FDR Number" {...form.register('fdrNumber')} />
               <Input label="BG Expiry" type="date" {...form.register('bgExpiryDate', { valueAsDate: true })} />
+              <Input label="FDR Expiry" type="date" {...form.register('fdrExpiryDate', { valueAsDate: true })} />
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center justify-end">
-                <Button type="button" variant="secondary" onClick={() => append(defaultSite())}>
-                  <Plus className="h-4 w-4" /> Add Site
-                </Button>
-              </div>
-
               {form.formState.errors.sites?.message && (
                 <p className="text-sm text-red-500">{form.formState.errors.sites.message}</p>
               )}
 
               {fields.map((field, index) => (
                 <div key={field.id} className="rounded-xl border border-red-200 bg-white/80 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Site {index + 1}</span>
-                {fields.length > 1 && (
-                  <button
-                    type="button"
-                    className="rounded p-1 text-red-500 hover:bg-red-50"
-                    onClick={() => remove(index)}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <Input
-                label="Site Name"
-                error={form.formState.errors.sites?.[index]?.siteNameRaw?.message}
-                {...form.register(`sites.${index}.siteNameRaw`)}
-              />
-            </div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-600">Site {index + 1}</span>
+                    {fields.length > 1 && (
+                      <button
+                        type="button"
+                        className="rounded p-1 text-red-500 hover:bg-red-50"
+                        onClick={() => remove(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <Input
+                    label="Site Name"
+                    error={form.formState.errors.sites?.[index]?.siteNameRaw?.message}
+                    {...form.register(`sites.${index}.siteNameRaw`)}
+                  />
+                </div>
               ))}
+
+              <div className="flex items-center justify-end">
+                <Button type="button" variant="secondary" onClick={() => append(defaultSite())}>
+                  <Plus className="h-4 w-4" /> Add Site
+                </Button>
+              </div>
             </div>
           </div>
         </FormSection>

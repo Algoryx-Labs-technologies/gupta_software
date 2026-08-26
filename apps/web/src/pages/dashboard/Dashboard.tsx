@@ -21,7 +21,15 @@ import { Spinner } from '@/components/Spinner';
 import { Select } from '@/components/Input';
 import { formatCurrency, formatNumber } from '@/lib/formatters';
 
-const PIE_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#64748B'];
+const STATUS_PIE_COLORS: Record<string, string> = {
+  Active: '#2563EB',
+  Completed: '#22C55E',
+  Pending: '#F59E0B',
+  Expired: '#EF4444',
+  Cancelled: '#94A3B8',
+};
+
+const STATUS_ORDER = ['Active', 'Completed', 'Pending', 'Expired', 'Cancelled'] as const;
 
 export default function DashboardPage() {
   const [tenderId, setTenderId] = useState('');
@@ -57,15 +65,31 @@ export default function DashboardPage() {
     enabled: !!tenderId,
   });
 
-  const tenderPie = data
-    ? [
-        { name: 'Active', value: data.tenders.activeCount },
-        { name: 'Completed', value: data.tenders.completedCount },
-        { name: 'Pending', value: data.tenders.pendingCount },
-        { name: 'Expired', value: data.tenders.expiredCount },
-        { name: 'Cancelled', value: data.tenders.cancelledCount },
-      ].filter((d) => d.value > 0)
-    : [];
+  const tenderPie = useMemo(() => {
+    if (!data) return [];
+    const slices = [
+      { name: 'Active', value: data.tenders.activeCount },
+      { name: 'Completed', value: data.tenders.completedCount },
+      { name: 'Pending', value: data.tenders.pendingCount },
+      { name: 'Expired', value: data.tenders.expiredCount },
+      { name: 'Cancelled', value: data.tenders.cancelledCount },
+    ].filter((d) => d.value > 0);
+
+    return [...slices].sort(
+      (a, b) => STATUS_ORDER.indexOf(a.name as (typeof STATUS_ORDER)[number]) - STATUS_ORDER.indexOf(b.name as (typeof STATUS_ORDER)[number]),
+    );
+  }, [data]);
+
+  const tenderPieTotal = useMemo(
+    () => tenderPie.reduce((sum, slice) => sum + slice.value, 0),
+    [tenderPie],
+  );
+
+  const selectedTenderStatus = useMemo(() => {
+    const selected = (tendersData?.data ?? []).find((t) => t._id === tenderId);
+    if (!selected?.status) return null;
+    return selected.status.charAt(0).toUpperCase() + selected.status.slice(1);
+  }, [tendersData, tenderId]);
 
   const filters = (
     <Select
@@ -95,6 +119,19 @@ export default function DashboardPage() {
               Showing stats for <span className="font-medium text-gray-700">{selectedTenderLabel}</span>
             </p>
           )}
+
+          <div className="card">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h3 className="font-semibold">Tender Progress</h3>
+              <span className="text-sm font-medium text-brand-700">{data.tenders.progress ?? 0}%</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-brand-gradient transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, data.tenders.progress ?? 0))}%` }}
+              />
+            </div>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <StatCard
@@ -150,18 +187,80 @@ export default function DashboardPage() {
             </div>
 
             <div className="card">
-              <h3 className="mb-4 font-semibold">Tender Status</h3>
+              <div className="mb-1 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">Tender Status</h3>
+                  <p className="text-xs text-muted">Across all tenders</p>
+                </div>
+                {selectedTenderStatus && (
+                  <span
+                    className="rounded-lg border px-2.5 py-1 text-xs font-medium"
+                    style={{
+                      color: STATUS_PIE_COLORS[selectedTenderStatus] ?? '#64748B',
+                      borderColor: `${STATUS_PIE_COLORS[selectedTenderStatus] ?? '#64748B'}33`,
+                      backgroundColor: `${STATUS_PIE_COLORS[selectedTenderStatus] ?? '#64748B'}14`,
+                    }}
+                  >
+                    Selected: {selectedTenderStatus}
+                  </span>
+                )}
+              </div>
               {tenderPie.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie data={tenderPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                      {tenderPie.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="grid items-center gap-4 sm:grid-cols-[1fr_auto]">
+                  <div className="relative h-[240px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={tenderPie}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={58}
+                          outerRadius={88}
+                          paddingAngle={tenderPie.length > 1 ? 3 : 0}
+                          stroke="#fff"
+                          strokeWidth={2}
+                        >
+                          {tenderPie.map((slice) => (
+                            <Cell key={slice.name} fill={STATUS_PIE_COLORS[slice.name] ?? '#64748B'} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number, name: string) => [
+                            `${value} · ${tenderPieTotal ? Math.round((value / tenderPieTotal) * 100) : 0}%`,
+                            name,
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-semibold text-gray-900">{tenderPieTotal}</span>
+                      <span className="text-xs text-muted">tenders</span>
+                    </div>
+                  </div>
+
+                  <div className="min-w-[140px] space-y-2.5">
+                    {tenderPie.map((slice) => {
+                      const pct = tenderPieTotal ? Math.round((slice.value / tenderPieTotal) * 100) : 0;
+                      return (
+                        <div key={slice.name} className="flex items-center justify-between gap-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: STATUS_PIE_COLORS[slice.name] }}
+                            />
+                            <span className="text-gray-700">{slice.name}</span>
+                          </div>
+                          <span className="font-medium text-gray-900">
+                            {slice.value}
+                            <span className="ml-1 text-xs font-normal text-muted">{pct}%</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : (
                 <p className="py-12 text-center text-sm text-muted">No tender data</p>
               )}

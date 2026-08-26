@@ -25,6 +25,7 @@ export interface DashboardSummary {
       bgExpiryDate: string;
       daysUntilExpiry: number;
     }[];
+    progress: number;
   };
   labourExpenses: {
     totalAmount: number;

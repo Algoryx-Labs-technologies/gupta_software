@@ -12,6 +12,7 @@ export type TenderSiteInput = z.infer<typeof tenderSiteSchema>;
 export const createTenderSchema = z.object({
   tenderName: z.string().min(1, 'Tender name is required'),
   tenderNo: z.string().min(1, 'Tender number is required'),
+  uniqueId: z.string().optional(),
   orderValue: z.coerce.number().min(0).default(0),
   emd: z.coerce.number().min(0).default(0),
   pg: z.coerce.number().min(0).default(0),
@@ -22,6 +23,9 @@ export const createTenderSchema = z.object({
   workCompleted: z.coerce.number().min(0).default(0),
   bgNumber: z.string().optional(),
   bgExpiryDate: z.coerce.date().optional(),
+  fdrNumber: z.string().optional(),
+  fdrExpiryDate: z.coerce.date().optional(),
+  progress: z.coerce.number().min(0).max(100).default(0),
   status: z.nativeEnum(TenderStatus).default(TenderStatus.PENDING),
   sites: z.array(tenderSiteSchema).min(1, 'At least one site is required'),
   notes: z.string().optional(),

@@ -1,10 +1,24 @@
 import { VendorModel } from '../models/Vendor.js';
 import { TenderModel } from '../models/Tender.js';
+import { LabourExpenseModel } from '../models/LabourExpense.js';
+import { LabourExpenseCategory } from '@gupta/shared';
 import { formatEntityCode } from './entityCode.js';
+import { logger } from './logger.js';
 
 export async function backfillEntityCodes(): Promise<void> {
   await backfillVendorCodes();
   await backfillTenderCodes();
+  await backfillLabourExpenseCategories();
+}
+
+async function backfillLabourExpenseCategories(): Promise<void> {
+  const result = await LabourExpenseModel.updateMany(
+    { $or: [{ category: { $exists: false } }, { category: null }, { category: '' }] },
+    { $set: { category: LabourExpenseCategory.OTHER } },
+  );
+  if (result.modifiedCount > 0) {
+    logger.info(`Backfilled category on ${result.modifiedCount} labour expense(s)`);
+  }
 }
 
 async function backfillVendorCodes(): Promise<void> {

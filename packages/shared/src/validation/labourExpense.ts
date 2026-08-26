@@ -30,7 +30,10 @@ export const labourExpenseFilterSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   tender: objectIdSchema.optional(),
   site: objectIdSchema.optional(),
-  category: z.nativeEnum(LabourExpenseCategory).optional(),
+  category: z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? undefined : value),
+    z.nativeEnum(LabourExpenseCategory).optional(),
+  ),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
 });
