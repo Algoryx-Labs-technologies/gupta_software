@@ -23,6 +23,7 @@ import { vendorsApi, categoriesApi } from '@/api/masters';
 import { PageWrapper } from '@/layouts/PageWrapper';
 import { Button } from '@/components/Button';
 import { Input, Textarea, Select } from '@/components/Input';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/Modal';
 import { ModalFormFooter } from '@/components/ModalFormFooter';
@@ -329,8 +330,7 @@ export default function PurchasesPage() {
     form.setValue('vendorNameRaw', selected?.name ?? '', { shouldValidate: true });
   };
 
-  const handleTenderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
+  const handleTenderChange = (value: string) => {
     if (value === ADD_TENDER_VALUE) {
       setTenderModalOpen(true);
       return;
@@ -379,8 +379,7 @@ export default function PurchasesPage() {
     [categories],
   );
 
-  const handleCategoryChange = (index: number, e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
+  const handleCategoryChange = (index: number, value: string) => {
     if (value === ADD_CATEGORY_VALUE) {
       setCategoryModalItemIndex(index);
       setCategoryModalOpen(true);
@@ -823,11 +822,13 @@ export default function PurchasesPage() {
 
           <FormSection title="Tender & Site" tone="green">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Select
+              <SearchableSelect
                 label="Tender"
                 options={tenderOptions}
                 value={form.watch('tender') ?? ''}
                 onChange={handleTenderChange}
+                placeholder="Select tender"
+                searchPlaceholder="Search tender no, name, code..."
                 error={form.formState.errors.tender?.message}
               />
               <Select
@@ -873,11 +874,13 @@ export default function PurchasesPage() {
                         {...form.register(`items.${index}.itemDescription`)}
                       />
                     </div>
-                    <Select
+                    <SearchableSelect
                       label="Category"
                       options={categoryOptions}
                       value={form.watch(`items.${index}.category`) ?? ''}
-                      onChange={(e) => handleCategoryChange(index, e)}
+                      onChange={(value) => handleCategoryChange(index, value)}
+                      placeholder="Select category"
+                      searchPlaceholder="Search category name or code..."
                       error={form.formState.errors.items?.[index]?.categoryNameRaw?.message}
                     />
                     <input type="hidden" {...form.register(`items.${index}.categoryNameRaw`)} />
