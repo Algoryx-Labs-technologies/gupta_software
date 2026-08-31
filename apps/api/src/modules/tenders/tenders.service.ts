@@ -29,6 +29,24 @@ function buildFilter(filters: TenderFilterInput): FilterQuery<ITender> {
   return query;
 }
 
+const STATUS_SORT_ORDER: Record<TenderStatus, number> = {
+  [TenderStatus.ACTIVE]: 0,
+  [TenderStatus.PENDING]: 1,
+  [TenderStatus.COMPLETED]: 2,
+  [TenderStatus.CANCELLED]: 3,
+  [TenderStatus.EXPIRED]: 4,
+};
+
+function compareByStatusThenDate(
+  a: { status: TenderStatus; createdAt: Date },
+  b: { status: TenderStatus; createdAt: Date },
+  dateDir: 1 | -1,
+) {
+  const statusDiff = STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status];
+  if (statusDiff !== 0) return statusDiff;
+  return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dateDir;
+}
+
 function normalizeTender<T extends { sites?: ITender['sites'] }>(tender: T): T {
   return { ...tender, sites: tender.sites ?? [] };
 }
@@ -41,28 +59,51 @@ export async function list(filters: TenderFilterInput) {
   const { page, limit, sortBy = 'createdAt', sortOrder } = filters;
   const { skip } = getPagination(page, limit);
   const filter = buildFilter(filters);
-  const sort: Record<string, 1 | -1> = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+  const dateDir = sortOrder === 'asc' ? 1 : -1;
 
-  const [data, total] = await Promise.all([
+  if (filters.status) {
+    const sort: Record<string, 1 | -1> = { [sortBy]: dateDir };
+    const [data, total] = await Promise.all([
+      TenderModel.find(filter)
+        .populate('createdBy', 'name')
+        .populate('sites.site', 'name code')
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      TenderModel.countDocuments(filter),
+    ]);
+
+    return { data: normalizeTenders(data), meta: buildPaginationMeta(page, limit, total) };
+  }
+
+  const [allData, total] = await Promise.all([
     TenderModel.find(filter)
       .populate('createdBy', 'name')
       .populate('sites.site', 'name code')
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
       .lean(),
     TenderModel.countDocuments(filter),
   ]);
+
+  const sorted = [...allData].sort((a, b) => compareByStatusThenDate(a, b, dateDir));
+  const data = sorted.slice(skip, skip + limit);
 
   return { data: normalizeTenders(data), meta: buildPaginationMeta(page, limit, total) };
 }
 
 export async function listForExport(filters: TenderFilterInput) {
-  const data = await TenderModel.find(buildFilter(filters))
-    .populate('sites.site', 'name code')
-    .sort({ createdAt: -1 })
-    .lean();
-  return normalizeTenders(data);
+  const filter = buildFilter(filters);
+  const dateDir = filters.sortOrder === 'asc' ? 1 : -1;
+  const data = await TenderModel.find(filter).populate('sites.site', 'name code').lean();
+
+  const sorted = filters.status
+    ? [...data].sort(
+        (a, b) =>
+          (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dateDir,
+      )
+    : [...data].sort((a, b) => compareByStatusThenDate(a, b, dateDir));
+
+  return normalizeTenders(sorted);
 }
 
 export async function create(input: CreateTenderInput, userId: string) {

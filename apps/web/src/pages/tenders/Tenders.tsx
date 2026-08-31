@@ -30,6 +30,19 @@ const statusOptions = Object.values(TenderStatus).map((s) => ({
   label: s.charAt(0).toUpperCase() + s.slice(1),
 }));
 
+const statusFilterOptions = [
+  { value: TenderStatus.ACTIVE, label: 'Active' },
+  { value: TenderStatus.PENDING, label: 'Pending' },
+  { value: TenderStatus.COMPLETED, label: 'Completed' },
+  { value: TenderStatus.CANCELLED, label: 'Cancelled' },
+  { value: '', label: 'All statuses' },
+];
+
+const uploadSortOptions = [
+  { value: 'desc', label: 'Latest uploaded' },
+  { value: 'asc', label: 'Oldest uploaded' },
+];
+
 const defaultSite = (): TenderSiteInput => ({
   siteNameRaw: '',
 });
@@ -93,6 +106,12 @@ function isInstrumentExpiringSoon(...dates: Array<string | Date | undefined>) {
   });
 }
 
+function formatExpiryDate(date: string | Date | undefined) {
+  const formatted = formatDate(date);
+  if (!date || !isInstrumentExpiringSoon(date)) return formatted;
+  return <span className="font-semibold text-red-600">{formatted}</span>;
+}
+
 function formatDateTime(date: string | Date | undefined | null) {
   if (!date) return '—';
   const d = typeof date === 'string' ? new Date(date) : date;
@@ -132,14 +151,25 @@ export default function TendersPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<TenderStatus | ''>(TenderStatus.ACTIVE);
+  const [uploadSort, setUploadSort] = useState<'asc' | 'desc'>('desc');
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [infoId, setInfoId] = useState<string | null>(null);
 
+  const listParams = {
+    page,
+    limit: 20,
+    sortBy: 'createdAt',
+    sortOrder: uploadSort,
+    ...(search && { search }),
+    ...(statusFilter && { status: statusFilter }),
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ['tenders', page, search],
-    queryFn: () => tendersApi.list({ page, limit: 20, search: search || undefined }),
+    queryKey: ['tenders', page, search, statusFilter, uploadSort],
+    queryFn: () => tendersApi.list(listParams),
   });
 
   const { data: detailTender, isLoading: detailLoading } = useQuery({
@@ -236,8 +266,8 @@ export default function TendersPage() {
       header: 'Outstanding',
       render: (r) => formatCurrency(r.paymentOutstanding),
     },
-    { key: 'bgExpiryDate', header: 'BG Expiry', render: (r) => formatDate(r.bgExpiryDate) },
-    { key: 'fdrExpiryDate', header: 'FDR Expiry', render: (r) => formatDate(r.fdrExpiryDate) },
+    { key: 'bgExpiryDate', header: 'BG Expiry', render: (r) => formatExpiryDate(r.bgExpiryDate) },
+    { key: 'fdrExpiryDate', header: 'FDR Expiry', render: (r) => formatExpiryDate(r.fdrExpiryDate) },
     { key: 'status', header: 'Status', render: (r) => <Badge variant={r.status}>{r.status}</Badge> },
     {
       key: 'actions',
@@ -270,7 +300,11 @@ export default function TendersPage() {
           <Button
             variant="secondary"
             onClick={async () => {
-              const { data: rows } = await tendersApi.export();
+              const { data: rows } = await tendersApi.export({
+                sortBy: 'createdAt',
+                sortOrder: uploadSort,
+                ...(statusFilter && { status: statusFilter }),
+              });
               exportToExcel(
                 rows.flatMap((r) =>
                   (r.sites?.length ? r.sites : [{ siteNameRaw: '—' }]).map((site) => ({
@@ -292,7 +326,7 @@ export default function TendersPage() {
         </div>
       }
     >
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-end gap-2">
         <Input
           placeholder="Search tenders, sites..."
           value={search}
@@ -301,6 +335,26 @@ export default function TendersPage() {
             setPage(1);
           }}
           className="max-w-md"
+        />
+        <Select
+          label="Status"
+          options={statusFilterOptions}
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value as TenderStatus | '');
+            setPage(1);
+          }}
+          className="!w-40"
+        />
+        <Select
+          label="Sort"
+          options={uploadSortOptions}
+          value={uploadSort}
+          onChange={(e) => {
+            setUploadSort(e.target.value as 'asc' | 'desc');
+            setPage(1);
+          }}
+          className="!w-44"
         />
       </div>
 
@@ -313,7 +367,9 @@ export default function TendersPage() {
         total={data?.meta.total}
         onPageChange={setPage}
         rowClassName={(r) =>
-          isInstrumentExpiringSoon(r.bgExpiryDate, r.fdrExpiryDate) ? 'bg-amber-50/60' : ''
+          isInstrumentExpiringSoon(r.bgExpiryDate, r.fdrExpiryDate)
+            ? 'border-l-4 border-red-400 bg-red-50/90 hover:bg-red-100/80'
+            : ''
         }
         keyExtractor={(r) => r._id}
       />
