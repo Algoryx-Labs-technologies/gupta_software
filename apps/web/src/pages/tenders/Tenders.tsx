@@ -248,7 +248,12 @@ export default function TendersPage() {
 
   const columns: Column<Tender>[] = [
     { key: 'serialNo', header: '#', className: 'w-12' },
-    { key: 'code', header: 'Unique code', className: 'w-28' },
+    {
+      key: 'uniqueId',
+      header: 'Unique code',
+      className: 'w-28',
+      render: (r) => r.uniqueId?.trim() || '—',
+    },
     { key: 'tenderNo', header: 'Tender No' },
     { key: 'tenderName', header: 'Name' },
     {
@@ -511,10 +516,10 @@ export default function TendersPage() {
         ) : detailTender ? (
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailField label="Serial No" value={detailTender.serialNo} />
-            <DetailField label="Unique code" value={detailTender.code} />
+            <DetailField label="Tender Code" value={detailTender.code} />
             <DetailField label="Tender No" value={detailTender.tenderNo} />
             <DetailField label="Tender Name" value={detailTender.tenderName} />
-            <DetailField label="Unique ID" value={detailTender.uniqueId} />
+            <DetailField label="Unique code" value={detailTender.uniqueId} />
             <DetailField label="Status" value={<Badge variant={detailTender.status}>{detailTender.status}</Badge>} />
             <DetailField label="Progress" value={`${detailTender.progress ?? 0}%`} />
             <DetailField label="Order Value" value={formatCurrency(detailTender.orderValue)} />
