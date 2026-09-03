@@ -248,7 +248,7 @@ export default function TendersPage() {
 
   const columns: Column<Tender>[] = [
     { key: 'serialNo', header: '#', className: 'w-12' },
-    { key: 'code', header: 'Code', className: 'w-28' },
+    { key: 'code', header: 'Unique code', className: 'w-28' },
     { key: 'tenderNo', header: 'Tender No' },
     { key: 'tenderName', header: 'Name' },
     {
@@ -511,7 +511,7 @@ export default function TendersPage() {
         ) : detailTender ? (
           <dl className="grid gap-4 sm:grid-cols-2">
             <DetailField label="Serial No" value={detailTender.serialNo} />
-            <DetailField label="Tender Code" value={detailTender.code} />
+            <DetailField label="Unique code" value={detailTender.code} />
             <DetailField label="Tender No" value={detailTender.tenderNo} />
             <DetailField label="Tender Name" value={detailTender.tenderName} />
             <DetailField label="Unique ID" value={detailTender.uniqueId} />
